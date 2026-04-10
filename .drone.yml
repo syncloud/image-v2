@@ -10,7 +10,7 @@
       {
          "commands": [
             "apt-get update",
-            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "apt-get install -y git bash sudo wget curl gdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
             "./tools/build-arm64.sh boards/raspberrypi-64"
          ],
          "image": "debian:bookworm",
@@ -80,7 +80,7 @@
       {
          "commands": [
             "apt-get update",
-            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "apt-get install -y git bash sudo wget curl gdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
             "./tools/build-arm64.sh boards/odroid-hc4"
          ],
          "image": "debian:bookworm",
@@ -150,7 +150,7 @@
       {
          "commands": [
             "apt-get update",
-            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "apt-get install -y git bash sudo wget curl gdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
             "./tools/build-arm64.sh boards/odroid-n2"
          ],
          "image": "debian:bookworm",
@@ -220,7 +220,7 @@
       {
          "commands": [
             "apt-get update",
-            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "apt-get install -y git bash sudo wget curl gdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
             "./tools/build-amd64.sh boards/amd64-uefi"
          ],
          "image": "debian:bookworm",

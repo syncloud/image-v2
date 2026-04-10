@@ -14,8 +14,8 @@ local build(board, arch) = {
         image: "debian:bookworm",
         commands: [
             "apt-get update",
-            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools " +
-            "squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "apt-get install -y git bash sudo wget curl gdisk u-boot-tools " +
+            "squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
             "./tools/" + tool + " " + board_dir,
         ],
         privileged: true
