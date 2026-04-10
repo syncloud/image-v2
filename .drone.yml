@@ -1,0 +1,280 @@
+---
+{
+   "kind": "pipeline",
+   "name": "raspberrypi-64",
+   "platform": {
+      "arch": "amd64",
+      "os": "linux"
+   },
+   "steps": [
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "./tools/build-arm64.sh boards/raspberrypi-64"
+         ],
+         "image": "debian:bookworm",
+         "name": "build",
+         "privileged": true
+      },
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y squashfs-tools rauc",
+            "./tools/build-bundle.sh boards/raspberrypi-64 ${DRONE_TAG:-dev}"
+         ],
+         "image": "debian:bookworm",
+         "name": "bundle",
+         "privileged": true,
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "commands": [
+            "gh release create ${DRONE_TAG} --repo syncloud/image-v2 --title ${DRONE_TAG} --notes ${DRONE_TAG} 2>/dev/null || true",
+            "for i in 1 2 3; do echo \"attempt $i\"; timeout 600 gh release upload ${DRONE_TAG} --repo syncloud/image-v2 --clobber output/*.xz output/*.raucb && break || sleep 10; done"
+         ],
+         "environment": {
+            "GITHUB_TOKEN": {
+               "from_secret": "github_token"
+            }
+         },
+         "image": "maniator/gh:v2.65.0",
+         "name": "publish to github",
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "image": "appleboy/drone-scp:1.6.4",
+         "name": "artifact",
+         "settings": {
+            "command_timeout": "2m",
+            "host": {
+               "from_secret": "artifact_host"
+            },
+            "key": {
+               "from_secret": "artifact_key"
+            },
+            "source": "output/*",
+            "target": "/home/artifact/repo/image-v2",
+            "username": "artifact"
+         }
+      }
+   ]
+}
+---
+{
+   "kind": "pipeline",
+   "name": "odroid-hc4",
+   "platform": {
+      "arch": "amd64",
+      "os": "linux"
+   },
+   "steps": [
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "./tools/build-arm64.sh boards/odroid-hc4"
+         ],
+         "image": "debian:bookworm",
+         "name": "build",
+         "privileged": true
+      },
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y squashfs-tools rauc",
+            "./tools/build-bundle.sh boards/odroid-hc4 ${DRONE_TAG:-dev}"
+         ],
+         "image": "debian:bookworm",
+         "name": "bundle",
+         "privileged": true,
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "commands": [
+            "gh release create ${DRONE_TAG} --repo syncloud/image-v2 --title ${DRONE_TAG} --notes ${DRONE_TAG} 2>/dev/null || true",
+            "for i in 1 2 3; do echo \"attempt $i\"; timeout 600 gh release upload ${DRONE_TAG} --repo syncloud/image-v2 --clobber output/*.xz output/*.raucb && break || sleep 10; done"
+         ],
+         "environment": {
+            "GITHUB_TOKEN": {
+               "from_secret": "github_token"
+            }
+         },
+         "image": "maniator/gh:v2.65.0",
+         "name": "publish to github",
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "image": "appleboy/drone-scp:1.6.4",
+         "name": "artifact",
+         "settings": {
+            "command_timeout": "2m",
+            "host": {
+               "from_secret": "artifact_host"
+            },
+            "key": {
+               "from_secret": "artifact_key"
+            },
+            "source": "output/*",
+            "target": "/home/artifact/repo/image-v2",
+            "username": "artifact"
+         }
+      }
+   ]
+}
+---
+{
+   "kind": "pipeline",
+   "name": "odroid-n2",
+   "platform": {
+      "arch": "amd64",
+      "os": "linux"
+   },
+   "steps": [
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "./tools/build-arm64.sh boards/odroid-n2"
+         ],
+         "image": "debian:bookworm",
+         "name": "build",
+         "privileged": true
+      },
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y squashfs-tools rauc",
+            "./tools/build-bundle.sh boards/odroid-n2 ${DRONE_TAG:-dev}"
+         ],
+         "image": "debian:bookworm",
+         "name": "bundle",
+         "privileged": true,
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "commands": [
+            "gh release create ${DRONE_TAG} --repo syncloud/image-v2 --title ${DRONE_TAG} --notes ${DRONE_TAG} 2>/dev/null || true",
+            "for i in 1 2 3; do echo \"attempt $i\"; timeout 600 gh release upload ${DRONE_TAG} --repo syncloud/image-v2 --clobber output/*.xz output/*.raucb && break || sleep 10; done"
+         ],
+         "environment": {
+            "GITHUB_TOKEN": {
+               "from_secret": "github_token"
+            }
+         },
+         "image": "maniator/gh:v2.65.0",
+         "name": "publish to github",
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "image": "appleboy/drone-scp:1.6.4",
+         "name": "artifact",
+         "settings": {
+            "command_timeout": "2m",
+            "host": {
+               "from_secret": "artifact_host"
+            },
+            "key": {
+               "from_secret": "artifact_key"
+            },
+            "source": "output/*",
+            "target": "/home/artifact/repo/image-v2",
+            "username": "artifact"
+         }
+      }
+   ]
+}
+---
+{
+   "kind": "pipeline",
+   "name": "amd64-uefi",
+   "platform": {
+      "arch": "amd64",
+      "os": "linux"
+   },
+   "steps": [
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y git bash sudo wget curl sgdisk u-boot-tools squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools",
+            "./tools/build-amd64.sh boards/amd64-uefi"
+         ],
+         "image": "debian:bookworm",
+         "name": "build",
+         "privileged": true
+      },
+      {
+         "commands": [
+            "apt-get update",
+            "apt-get install -y squashfs-tools rauc",
+            "./tools/build-bundle.sh boards/amd64-uefi ${DRONE_TAG:-dev}"
+         ],
+         "image": "debian:bookworm",
+         "name": "bundle",
+         "privileged": true,
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "commands": [
+            "gh release create ${DRONE_TAG} --repo syncloud/image-v2 --title ${DRONE_TAG} --notes ${DRONE_TAG} 2>/dev/null || true",
+            "for i in 1 2 3; do echo \"attempt $i\"; timeout 600 gh release upload ${DRONE_TAG} --repo syncloud/image-v2 --clobber output/*.xz output/*.raucb && break || sleep 10; done"
+         ],
+         "environment": {
+            "GITHUB_TOKEN": {
+               "from_secret": "github_token"
+            }
+         },
+         "image": "maniator/gh:v2.65.0",
+         "name": "publish to github",
+         "when": {
+            "event": [
+               "tag"
+            ]
+         }
+      },
+      {
+         "image": "appleboy/drone-scp:1.6.4",
+         "name": "artifact",
+         "settings": {
+            "command_timeout": "2m",
+            "host": {
+               "from_secret": "artifact_host"
+            },
+            "key": {
+               "from_secret": "artifact_key"
+            },
+            "source": "output/*",
+            "target": "/home/artifact/repo/image-v2",
+            "username": "artifact"
+         }
+      }
+   ]
+}
