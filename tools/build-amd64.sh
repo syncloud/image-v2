@@ -33,11 +33,13 @@ sgdisk -n 3:0:+2G    -t 3:8300 -c 3:rootfs-b   "$IMAGE"
 sgdisk -n 4:0:0      -t 4:8300 -c 4:data        "$IMAGE"
 
 # Setup loop device
-LOOP=$(losetup --find --show --partscan "$IMAGE")
-ESP=${LOOP}p1
-ROOTFS_A=${LOOP}p2
-ROOTFS_B=${LOOP}p3
-DATA=${LOOP}p4
+LOOP=$(losetup --find --show "$IMAGE")
+kpartx -avs "$LOOP"
+LOOP_NAME=$(basename "$LOOP")
+ESP="/dev/mapper/${LOOP_NAME}p1"
+ROOTFS_A="/dev/mapper/${LOOP_NAME}p2"
+ROOTFS_B="/dev/mapper/${LOOP_NAME}p3"
+DATA="/dev/mapper/${LOOP_NAME}p4"
 
 # Format
 mkfs.vfat -F 32 -n ESP "$ESP"
@@ -77,6 +79,7 @@ dd if="$ROOTFS_A" of="$ROOTFS_B" bs=4M status=progress
 e2label "$ROOTFS_B" rootfs-b
 
 # Cleanup
+kpartx -d "$LOOP"
 losetup -d "$LOOP"
 
 echo "Image built: $IMAGE"

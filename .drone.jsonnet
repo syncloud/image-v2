@@ -25,7 +25,7 @@ local build(board, arch) = {
         image: "debian:bookworm",
         commands: [
             "apt-get update",
-            "apt-get install -y squashfs-tools rauc",
+            "apt-get install -y squashfs-tools rauc kpartx",
             "./tools/build-bundle.sh " + board_dir + " ${DRONE_TAG:-dev}",
         ],
         privileged: true,

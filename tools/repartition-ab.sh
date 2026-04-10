@@ -22,9 +22,11 @@ mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
 OUTPUT_IMAGE="$OUTPUT_DIR/syncloud-${BOARD_NAME}.img"
 
 # Mount Armbian image to extract contents
-ARMBIAN_LOOP=$(losetup --find --show --partscan "$ARMBIAN_IMAGE")
-ARMBIAN_BOOT="${ARMBIAN_LOOP}p1"
-ARMBIAN_ROOT="${ARMBIAN_LOOP}p2"
+ARMBIAN_LOOP=$(losetup --find --show "$ARMBIAN_IMAGE")
+kpartx -avs "$ARMBIAN_LOOP"
+ARMBIAN_LOOP_NAME=$(basename "$ARMBIAN_LOOP")
+ARMBIAN_BOOT="/dev/mapper/${ARMBIAN_LOOP_NAME}p1"
+ARMBIAN_ROOT="/dev/mapper/${ARMBIAN_LOOP_NAME}p2"
 
 mkdir -p "$WORK_DIR"/{armbian-boot,armbian-root}
 mount "$ARMBIAN_BOOT" "$WORK_DIR/armbian-boot"
@@ -57,11 +59,13 @@ sgdisk -n 4:0:0               -t 4:8300 -c 4:data        "$OUTPUT_IMAGE"
 dd if="$ARMBIAN_IMAGE" of="$OUTPUT_IMAGE" bs=512 skip=1 seek=1 count=8191 conv=notrunc
 
 # Setup loop for output image
-OUT_LOOP=$(losetup --find --show --partscan "$OUTPUT_IMAGE")
-OUT_BOOT="${OUT_LOOP}p1"
-OUT_ROOTFS_A="${OUT_LOOP}p2"
-OUT_ROOTFS_B="${OUT_LOOP}p3"
-OUT_DATA="${OUT_LOOP}p4"
+OUT_LOOP=$(losetup --find --show "$OUTPUT_IMAGE")
+kpartx -avs "$OUT_LOOP"
+OUT_LOOP_NAME=$(basename "$OUT_LOOP")
+OUT_BOOT="/dev/mapper/${OUT_LOOP_NAME}p1"
+OUT_ROOTFS_A="/dev/mapper/${OUT_LOOP_NAME}p2"
+OUT_ROOTFS_B="/dev/mapper/${OUT_LOOP_NAME}p3"
+OUT_DATA="/dev/mapper/${OUT_LOOP_NAME}p4"
 
 # Format
 mkfs.vfat -F 32 "$OUT_BOOT"
@@ -110,7 +114,9 @@ e2label "$OUT_ROOTFS_B" rootfs-b
 # Cleanup Armbian mounts
 umount "$WORK_DIR/armbian-boot"
 umount "$WORK_DIR/armbian-root"
+kpartx -d "$ARMBIAN_LOOP"
 losetup -d "$ARMBIAN_LOOP"
+kpartx -d "$OUT_LOOP"
 losetup -d "$OUT_LOOP"
 
 echo "Image built: $OUTPUT_IMAGE"

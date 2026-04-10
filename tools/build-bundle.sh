@@ -25,8 +25,10 @@ ROOTFS_IMAGE="$OUTPUT_DIR/syncloud-${BOARD_NAME}.img"
 mkdir -p "$BUNDLE_DIR"
 
 # Extract rootfs-a from the built image
-LOOP=$(losetup --find --show --partscan "$ROOTFS_IMAGE")
-ROOTFS_A="${LOOP}p2"
+LOOP=$(losetup --find --show "$ROOTFS_IMAGE")
+kpartx -avs "$LOOP"
+LOOP_NAME=$(basename "$LOOP")
+ROOTFS_A="/dev/mapper/${LOOP_NAME}p2"
 mkdir -p "$BUNDLE_DIR/rootfs"
 mount "$ROOTFS_A" "$BUNDLE_DIR/rootfs"
 
@@ -34,6 +36,7 @@ mount "$ROOTFS_A" "$BUNDLE_DIR/rootfs"
 mksquashfs "$BUNDLE_DIR/rootfs" "$BUNDLE_DIR/rootfs.img" -comp xz
 
 umount "$BUNDLE_DIR/rootfs"
+kpartx -d "$LOOP"
 losetup -d "$LOOP"
 
 # Create RAUC bundle manifest
