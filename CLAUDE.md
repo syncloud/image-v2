@@ -75,3 +75,7 @@ curl -s "http://ci.syncloud.org:8081/files/image-v2/"
 # CI pipeline config
 
 Drone CI reads `.drone.jsonnet` directly -- there is no need to generate or commit `.drone.yml`.
+
+# Conventions
+
+- Prefer calling scripts from `tools/` in CI steps instead of inlining shell commands in `.drone.jsonnet`.
