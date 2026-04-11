@@ -16,6 +16,7 @@ local build(board, arch) = {
             "apt-get update",
             "apt-get install -y git bash sudo wget curl gdisk u-boot-tools " +
             "squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
+            "ln -sf gutsy /usr/share/debootstrap/scripts/noble",
             "./tools/" + tool + " " + board_dir,
         ],
         privileged: true
@@ -63,6 +64,19 @@ local build(board, arch) = {
             command_timeout: "2m",
             target: "/home/artifact/repo/image-v2",
             source: "output/*"
+        }
+    },
+    {
+        name: "cleanup",
+        image: "debian:bookworm-slim",
+        commands: [
+            "apt-get update && apt-get install -y kpartx dmsetup || true",
+            "losetup -l | grep '(deleted)' | awk '{print $1}' | while read dev; do losetup -d \"$dev\" || true; done",
+            "dmsetup remove -f /dev/mapper/loop* 2>/dev/null || true",
+        ],
+        privileged: true,
+        when: {
+            status: ["success", "failure"]
         }
     }]
 };

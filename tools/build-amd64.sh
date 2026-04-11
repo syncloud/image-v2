@@ -21,6 +21,18 @@ IMAGE="$OUTPUT_DIR/syncloud-amd64-uefi.img"
 
 mkdir -p "$OUTPUT_DIR" "$ROOTFS_DIR"
 
+# Cleanup handler to free loop devices on failure
+cleanup() {
+    set +e
+    umount "$ROOTFS_DIR/boot/efi" 2>/dev/null
+    umount "$ROOTFS_DIR/sys" 2>/dev/null
+    umount "$ROOTFS_DIR/proc" 2>/dev/null
+    umount "$ROOTFS_DIR/dev" 2>/dev/null
+    umount "$ROOTFS_DIR" 2>/dev/null
+    [[ -n "$LOOP" ]] && { kpartx -d "$LOOP" 2>/dev/null; losetup -d "$LOOP" 2>/dev/null; }
+}
+trap cleanup EXIT
+
 # Create image: 256M ESP + 2G rootfs-a + 2G rootfs-b + 1G data
 IMAGE_SIZE=$((256 + 2048 + 2048 + 1024))
 truncate -s ${IMAGE_SIZE}M "$IMAGE"
@@ -99,8 +111,5 @@ umount "$ROOTFS_DIR"
 dd if="$ROOTFS_A" of="$ROOTFS_B" bs=4M status=progress
 e2label "$ROOTFS_B" rootfs-b
 
-# Cleanup
-kpartx -d "$LOOP"
-losetup -d "$LOOP"
-
+# Cleanup is handled by trap
 echo "Image built: $IMAGE"

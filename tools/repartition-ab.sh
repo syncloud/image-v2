@@ -25,6 +25,18 @@ mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
 
 OUTPUT_IMAGE="$OUTPUT_DIR/syncloud-${BOARD_NAME}.img"
 
+# Cleanup handler to free loop devices on failure
+cleanup() {
+    set +e
+    umount "$WORK_DIR/out-rootfs" 2>/dev/null
+    umount "$WORK_DIR/out-boot" 2>/dev/null
+    umount "$WORK_DIR/armbian-boot" 2>/dev/null
+    umount "$WORK_DIR/armbian-root" 2>/dev/null
+    [[ -n "$OUT_LOOP" ]] && { kpartx -d "$OUT_LOOP" 2>/dev/null; losetup -d "$OUT_LOOP" 2>/dev/null; }
+    [[ -n "$ARMBIAN_LOOP" ]] && { kpartx -d "$ARMBIAN_LOOP" 2>/dev/null; losetup -d "$ARMBIAN_LOOP" 2>/dev/null; }
+}
+trap cleanup EXIT
+
 # Mount Armbian image to extract contents
 ARMBIAN_LOOP=$(losetup --find --show "$ARMBIAN_IMAGE")
 kpartx -avs "$ARMBIAN_LOOP"
@@ -135,14 +147,5 @@ umount "$WORK_DIR/out-rootfs"
 dd if="$OUT_ROOTFS_A" of="$OUT_ROOTFS_B" bs=4M status=progress
 e2label "$OUT_ROOTFS_B" rootfs-b
 
-# Cleanup Armbian mounts
-if [[ "$PART_COUNT" -ge 2 ]]; then
-    umount "$WORK_DIR/armbian-boot"
-fi
-umount "$WORK_DIR/armbian-root"
-kpartx -d "$ARMBIAN_LOOP"
-losetup -d "$ARMBIAN_LOOP"
-kpartx -d "$OUT_LOOP"
-losetup -d "$OUT_LOOP"
-
+# Cleanup is handled by trap
 echo "Image built: $OUTPUT_IMAGE"
