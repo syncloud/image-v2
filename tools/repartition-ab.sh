@@ -1,8 +1,12 @@
 #!/bin/bash -ex
 
 # Take an Armbian image and repartition it for A/B rootfs layout
-# Input: single Armbian image with boot + rootfs
+# Input: single Armbian image (1 or 2 partitions)
 # Output: image with boot + rootfs-a + rootfs-b + data
+#
+# Armbian images come in two layouts:
+#   - 2 partitions: p1=boot (vfat), p2=rootfs (ext4) — e.g. Raspberry Pi
+#   - 1 partition:  p1=rootfs (ext4) with /boot inside — e.g. ODROID
 #
 # Usage: ./tools/repartition-ab.sh <armbian-image> <board-dir> <output-dir>
 
@@ -25,15 +29,26 @@ OUTPUT_IMAGE="$OUTPUT_DIR/syncloud-${BOARD_NAME}.img"
 ARMBIAN_LOOP=$(losetup --find --show "$ARMBIAN_IMAGE")
 kpartx -avs "$ARMBIAN_LOOP"
 ARMBIAN_LOOP_NAME=$(basename "$ARMBIAN_LOOP")
-ARMBIAN_BOOT="/dev/mapper/${ARMBIAN_LOOP_NAME}p1"
-ARMBIAN_ROOT="/dev/mapper/${ARMBIAN_LOOP_NAME}p2"
+
+# Detect partition layout: 1 or 2 partitions
+PART_COUNT=$(ls /dev/mapper/${ARMBIAN_LOOP_NAME}p* 2>/dev/null | wc -l)
+echo "Armbian image has $PART_COUNT partition(s)"
 
 mkdir -p "$WORK_DIR"/{armbian-boot,armbian-root}
-mount "$ARMBIAN_BOOT" "$WORK_DIR/armbian-boot"
-mount "$ARMBIAN_ROOT" "$WORK_DIR/armbian-root"
 
-# Calculate sizes
-BOOT_SIZE=$(df -BM --output=used "$WORK_DIR/armbian-boot" | tail -1 | tr -d 'M ')
+if [[ "$PART_COUNT" -ge 2 ]]; then
+    # 2-partition layout: p1=boot, p2=rootfs
+    mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p1" "$WORK_DIR/armbian-boot"
+    mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p2" "$WORK_DIR/armbian-root"
+    BOOT_SIZE=$(df -BM --output=used "$WORK_DIR/armbian-boot" | tail -1 | tr -d 'M ')
+else
+    # 1-partition layout: p1=rootfs with /boot inside
+    mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p1" "$WORK_DIR/armbian-root"
+    # Copy boot files out of rootfs
+    cp -a "$WORK_DIR/armbian-root/boot"/* "$WORK_DIR/armbian-boot/" || true
+    BOOT_SIZE=$(du -sm "$WORK_DIR/armbian-boot" | cut -f1)
+fi
+
 ROOT_SIZE=$(df -BM --output=used "$WORK_DIR/armbian-root" | tail -1 | tr -d 'M ')
 
 # Add margins: boot +16M, rootfs +512M each, data 1G
@@ -87,9 +102,12 @@ mkdir -p "$WORK_DIR/out-rootfs"
 mount "$OUT_ROOTFS_A" "$WORK_DIR/out-rootfs"
 cp -a "$WORK_DIR/armbian-root"/* "$WORK_DIR/out-rootfs/"
 
-# Install RAUC on rootfs
-chroot "$WORK_DIR/out-rootfs" apt-get update
-chroot "$WORK_DIR/out-rootfs" apt-get install -y rauc
+# Install RAUC on rootfs (no chroot — download arm64 .deb and extract directly)
+RAUC_DEB="$WORK_DIR/rauc.deb"
+RAUC_DEB_URL=$(wget -q -O - "http://ports.ubuntu.com/dists/noble/universe/binary-arm64/Packages.gz" \
+    | zcat | grep -A 20 "^Package: rauc$" | grep "^Filename:" | head -1 | awk '{print $2}')
+wget -O "$RAUC_DEB" "http://ports.ubuntu.com/$RAUC_DEB_URL"
+dpkg-deb -x "$RAUC_DEB" "$WORK_DIR/out-rootfs"
 
 # Install RAUC config
 mkdir -p "$WORK_DIR/out-rootfs/etc/rauc"
@@ -100,10 +118,16 @@ cp "$ROOT/rauc/post-install.sh" "$WORK_DIR/out-rootfs/usr/lib/rauc/"
 chmod +x "$WORK_DIR/out-rootfs/usr/lib/rauc/post-install.sh"
 
 # Install update agent
+mkdir -p "$WORK_DIR/out-rootfs/usr/lib/syncloud"
 cp "$ROOT/update-agent/syncloud-update.sh" "$WORK_DIR/out-rootfs/usr/lib/syncloud/"
+chmod +x "$WORK_DIR/out-rootfs/usr/lib/syncloud/syncloud-update.sh"
 cp "$ROOT/update-agent/syncloud-update.service" "$WORK_DIR/out-rootfs/etc/systemd/system/"
 cp "$ROOT/update-agent/syncloud-update.timer" "$WORK_DIR/out-rootfs/etc/systemd/system/"
-chroot "$WORK_DIR/out-rootfs" systemctl enable syncloud-update.timer
+
+# Enable update timer (create symlink instead of chroot systemctl)
+mkdir -p "$WORK_DIR/out-rootfs/etc/systemd/system/timers.target.wants"
+ln -sf /etc/systemd/system/syncloud-update.timer \
+    "$WORK_DIR/out-rootfs/etc/systemd/system/timers.target.wants/syncloud-update.timer"
 
 umount "$WORK_DIR/out-rootfs"
 
@@ -112,7 +136,9 @@ dd if="$OUT_ROOTFS_A" of="$OUT_ROOTFS_B" bs=4M status=progress
 e2label "$OUT_ROOTFS_B" rootfs-b
 
 # Cleanup Armbian mounts
-umount "$WORK_DIR/armbian-boot"
+if [[ "$PART_COUNT" -ge 2 ]]; then
+    umount "$WORK_DIR/armbian-boot"
+fi
 umount "$WORK_DIR/armbian-root"
 kpartx -d "$ARMBIAN_LOOP"
 losetup -d "$ARMBIAN_LOOP"

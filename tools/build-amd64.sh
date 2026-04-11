@@ -53,6 +53,11 @@ mount "$ROOTFS_A" "$ROOTFS_DIR"
 # Debootstrap
 debootstrap --arch=amd64 "$RELEASE" "$ROOTFS_DIR" http://archive.ubuntu.com/ubuntu
 
+# Bind mount for chroot
+mount --bind /dev "$ROOTFS_DIR/dev"
+mount --bind /proc "$ROOTFS_DIR/proc"
+mount --bind /sys "$ROOTFS_DIR/sys"
+
 # Install kernel, GRUB, RAUC
 chroot "$ROOTFS_DIR" apt-get update
 chroot "$ROOTFS_DIR" apt-get install -y \
@@ -62,16 +67,32 @@ chroot "$ROOTFS_DIR" apt-get install -y \
     systemd-sysv
 
 # Install RAUC config
+mkdir -p "$ROOTFS_DIR/etc/rauc" "$ROOTFS_DIR/usr/lib/rauc"
 sed "s|@RAUC_COMPATIBLE@|${RAUC_COMPATIBLE}|;s|@BOOTLOADER@|grub|" \
     "$ROOT/rauc/system.conf" > "$ROOTFS_DIR/etc/rauc/system.conf"
 cp "$ROOT/rauc/post-install.sh" "$ROOTFS_DIR/usr/lib/rauc/"
 chmod +x "$ROOTFS_DIR/usr/lib/rauc/post-install.sh"
+
+# Install update agent
+mkdir -p "$ROOTFS_DIR/usr/lib/syncloud"
+cp "$ROOT/update-agent/syncloud-update.sh" "$ROOTFS_DIR/usr/lib/syncloud/"
+chmod +x "$ROOTFS_DIR/usr/lib/syncloud/syncloud-update.sh"
+cp "$ROOT/update-agent/syncloud-update.service" "$ROOTFS_DIR/etc/systemd/system/"
+cp "$ROOT/update-agent/syncloud-update.timer" "$ROOTFS_DIR/etc/systemd/system/"
+mkdir -p "$ROOTFS_DIR/etc/systemd/system/timers.target.wants"
+ln -sf /etc/systemd/system/syncloud-update.timer \
+    "$ROOTFS_DIR/etc/systemd/system/timers.target.wants/syncloud-update.timer"
 
 # Install GRUB to ESP
 mount "$ESP" "$ROOTFS_DIR/boot/efi"
 chroot "$ROOTFS_DIR" grub-install --target=x86_64-efi --efi-directory=/boot/efi --no-nvram
 cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/grub/grub.cfg"
 umount "$ROOTFS_DIR/boot/efi"
+
+# Cleanup chroot bind mounts
+umount "$ROOTFS_DIR/sys"
+umount "$ROOTFS_DIR/proc"
+umount "$ROOTFS_DIR/dev"
 
 # Clone rootfs-a to rootfs-b
 umount "$ROOTFS_DIR"
