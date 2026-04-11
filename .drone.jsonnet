@@ -71,8 +71,7 @@ local build(board, arch) = {
         image: "debian:bookworm-slim",
         commands: [
             "apt-get update && apt-get install -y kpartx dmsetup || true",
-            "losetup -l | grep '(deleted)' | awk '{print $1}' | while read dev; do losetup -d \"$dev\" || true; done",
-            "dmsetup remove -f /dev/mapper/loop* 2>/dev/null || true",
+            "./tools/cleanup.sh",
         ],
         privileged: true,
         when: {
