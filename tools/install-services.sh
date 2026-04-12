@@ -55,7 +55,7 @@ SNAPD_VERSION=$(wget -q -O - "http://apps.syncloud.org/releases/stable/snapd2.ve
 echo "snapd version: $SNAPD_VERSION"
 ARCH=$(chroot "$ROOTFS" dpkg --print-architecture)
 echo "arch: $ARCH"
-wget -O "$ROOTFS/tmp/snapd.tar.gz" "http://apps.syncloud.org/apps/snapd-${SNAPD_VERSION}-${ARCH}.tar.gz"
+wget -O "$ROOTFS/tmp/snapd.tar.gz" "http://apps.syncloud.org/apps/snapd-${SNAPD_VERSION}-${ARCH}.tar.gz" --progress=dot:giga
 chroot "$ROOTFS" bash -c "cd /tmp && tar xzf snapd.tar.gz && ./snapd/install.sh"
 
 # Cleanup temp files
