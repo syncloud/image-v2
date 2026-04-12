@@ -59,20 +59,19 @@ SYSTEMD_READY=false
 i=0
 while [ $i -lt 60 ]; do
     i=$((i + 1))
-    STATUS=$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null || echo "not-ready")
+    STATUS=$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null | head -1 || echo "not-ready")
     echo "systemd status: $STATUS ($i)"
-    case "$STATUS" in
-        running|degraded)
-            SYSTEMD_READY=true
-            echo "systemd ready after ${i} attempts"
-            break
-            ;;
-    esac
+    if [ "$STATUS" = "running" ] || [ "$STATUS" = "degraded" ]; then
+        SYSTEMD_READY=true
+        echo "systemd ready after ${i} attempts (status: $STATUS)"
+        break
+    fi
     sleep 2
 done
 if [ "$SYSTEMD_READY" = "false" ]; then
     echo "ERROR: systemd failed to start"
     docker logs "$CONTAINER_NAME" 2>&1 | tail -30
+    docker exec "$CONTAINER_NAME" systemctl list-units --failed 2>/dev/null || true
     exit 1
 fi
 
