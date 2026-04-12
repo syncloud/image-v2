@@ -6,7 +6,7 @@
 #
 # Usage: ./tools/install-platform.sh <board-dir>
 
-apk add --no-cache kpartx e2fsprogs e2fsprogs-extra
+apk add --no-cache multipath-tools e2fsprogs e2fsprogs-extra
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(dirname "$DIR")
