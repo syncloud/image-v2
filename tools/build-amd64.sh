@@ -21,13 +21,9 @@ IMAGE="$OUTPUT_DIR/syncloud-amd64-uefi.img"
 
 mkdir -p "$OUTPUT_DIR" "$ROOTFS_DIR"
 
-# Cleanup handler to free loop devices on failure
 cleanup() {
     set +e
     umount "$ROOTFS_DIR/boot/efi" 2>/dev/null
-    umount "$ROOTFS_DIR/sys" 2>/dev/null
-    umount "$ROOTFS_DIR/proc" 2>/dev/null
-    umount "$ROOTFS_DIR/dev" 2>/dev/null
     umount "$ROOTFS_DIR" 2>/dev/null
     [[ -n "$LOOP" ]] && { kpartx -d "$LOOP" 2>/dev/null; losetup -d "$LOOP" 2>/dev/null; }
 }
@@ -37,14 +33,12 @@ trap cleanup EXIT
 IMAGE_SIZE=$((256 + 4096 + 4096 + 1024))
 truncate -s ${IMAGE_SIZE}M "$IMAGE"
 
-# Partition with GPT labels
 sgdisk -Z "$IMAGE"
 sgdisk -n 1:0:+256M  -t 1:ef00 -c 1:esp       "$IMAGE"
 sgdisk -n 2:0:+4G    -t 2:8300 -c 2:rootfs-a   "$IMAGE"
 sgdisk -n 3:0:+4G    -t 3:8300 -c 3:rootfs-b   "$IMAGE"
 sgdisk -n 4:0:0      -t 4:8300 -c 4:data        "$IMAGE"
 
-# Setup loop device
 LOOP=$(losetup --find --show "$IMAGE")
 kpartx -avs "$LOOP"
 LOOP_NAME=$(basename "$LOOP")
@@ -53,22 +47,15 @@ ROOTFS_A="/dev/mapper/${LOOP_NAME}p2"
 ROOTFS_B="/dev/mapper/${LOOP_NAME}p3"
 DATA="/dev/mapper/${LOOP_NAME}p4"
 
-# Format
 mkfs.vfat -F 32 -n ESP "$ESP"
 mkfs.ext4 -L rootfs-a "$ROOTFS_A"
 mkfs.ext4 -L rootfs-b "$ROOTFS_B"
 mkfs.ext4 -L data "$DATA"
 
-# Mount rootfs-a
 mount "$ROOTFS_A" "$ROOTFS_DIR"
 
 # Debootstrap
 debootstrap --arch=amd64 "$RELEASE" "$ROOTFS_DIR" http://archive.ubuntu.com/ubuntu
-
-# Bind mount for chroot
-mount --bind /dev "$ROOTFS_DIR/dev"
-mount --bind /proc "$ROOTFS_DIR/proc"
-mount --bind /sys "$ROOTFS_DIR/sys"
 
 # Enable universe repo (rauc is in universe)
 cat > "$ROOTFS_DIR/etc/apt/sources.list.d/ubuntu.sources" <<SOURCES
@@ -79,38 +66,32 @@ Components: main universe
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 SOURCES
 
-# Install kernel, GRUB, RAUC
+# Install kernel and GRUB via chroot
+mount --bind /dev "$ROOTFS_DIR/dev"
+mount --bind /proc "$ROOTFS_DIR/proc"
+mount --bind /sys "$ROOTFS_DIR/sys"
+
 chroot "$ROOTFS_DIR" apt-get update
 chroot "$ROOTFS_DIR" apt-get install -y \
     linux-image-generic \
     grub-efi-amd64 \
-    rauc \
     systemd-sysv
 
-# Install RAUC config
-mkdir -p "$ROOTFS_DIR/etc/rauc" "$ROOTFS_DIR/usr/lib/rauc"
-sed "s|@RAUC_COMPATIBLE@|${RAUC_COMPATIBLE}|;s|@BOOTLOADER@|grub|" \
-    "$ROOT/rauc/system.conf" > "$ROOTFS_DIR/etc/rauc/system.conf"
-cp "$ROOT/rauc/post-install.sh" "$ROOTFS_DIR/usr/lib/rauc/"
-chmod +x "$ROOTFS_DIR/usr/lib/rauc/post-install.sh"
+umount "$ROOTFS_DIR/sys"
+umount "$ROOTFS_DIR/proc"
+umount "$ROOTFS_DIR/dev"
 
-# Install update agent
-mkdir -p "$ROOTFS_DIR/usr/lib/syncloud"
-cp "$ROOT/update-agent/syncloud-update.sh" "$ROOTFS_DIR/usr/lib/syncloud/"
-chmod +x "$ROOTFS_DIR/usr/lib/syncloud/syncloud-update.sh"
-cp "$ROOT/update-agent/syncloud-update.service" "$ROOTFS_DIR/etc/systemd/system/"
-cp "$ROOT/update-agent/syncloud-update.timer" "$ROOTFS_DIR/etc/systemd/system/"
-mkdir -p "$ROOTFS_DIR/etc/systemd/system/timers.target.wants"
-ln -sf /etc/systemd/system/syncloud-update.timer \
-    "$ROOTFS_DIR/etc/systemd/system/timers.target.wants/syncloud-update.timer"
+# Install all Syncloud services (rauc, snapd, platform snap, data-init, update agent)
+"$ROOT/tools/install-services.sh" "$ROOTFS_DIR" "$BOARD_DIR"
 
 # Install GRUB to ESP
 mount "$ESP" "$ROOTFS_DIR/boot/efi"
+mount --bind /dev "$ROOTFS_DIR/dev"
+mount --bind /proc "$ROOTFS_DIR/proc"
+mount --bind /sys "$ROOTFS_DIR/sys"
 chroot "$ROOTFS_DIR" grub-install --target=x86_64-efi --efi-directory=/boot/efi --no-nvram
 cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/grub/grub.cfg"
 umount "$ROOTFS_DIR/boot/efi"
-
-# Cleanup chroot bind mounts
 umount "$ROOTFS_DIR/sys"
 umount "$ROOTFS_DIR/proc"
 umount "$ROOTFS_DIR/dev"
@@ -120,5 +101,4 @@ umount "$ROOTFS_DIR"
 dd if="$ROOTFS_A" of="$ROOTFS_B" bs=4M status=progress
 e2label "$ROOTFS_B" rootfs-b
 
-# Cleanup is handled by trap
 echo "Image built: $IMAGE"

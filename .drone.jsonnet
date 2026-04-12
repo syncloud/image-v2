@@ -6,7 +6,7 @@ local build(board, arch) = {
 
     platform: {
         os: "linux",
-        arch: "amd64"
+        arch: arch
     },
     steps: [
     {
