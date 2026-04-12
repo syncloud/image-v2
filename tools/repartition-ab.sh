@@ -49,16 +49,17 @@ echo "Armbian image has $PART_COUNT partition(s)"
 mkdir -p "$WORK_DIR"/{armbian-boot,armbian-root}
 
 if [[ "$PART_COUNT" -ge 2 ]]; then
-    # 2-partition layout: p1=boot, p2=rootfs
+    # 2-partition layout: p1=boot (vfat with firmware), p2=rootfs
+    SEPARATE_BOOT=true
     mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p1" "$WORK_DIR/armbian-boot"
     mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p2" "$WORK_DIR/armbian-root"
     BOOT_SIZE=$(df -BM --output=used "$WORK_DIR/armbian-boot" | tail -1 | tr -d 'M ')
 else
-    # 1-partition layout: p1=rootfs with /boot inside
+    # 1-partition layout: p1=rootfs with /boot inside (e.g. ODROID)
+    # Boot partition only needs boot.scr — kernel/initrd/dtb are loaded from rootfs
+    SEPARATE_BOOT=false
     mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p1" "$WORK_DIR/armbian-root"
-    # Copy boot files out of rootfs
-    cp -a "$WORK_DIR/armbian-root/boot"/* "$WORK_DIR/armbian-boot/" || true
-    BOOT_SIZE=$(du -sm "$WORK_DIR/armbian-boot" | cut -f1)
+    BOOT_SIZE=1
 fi
 
 ROOT_SIZE=$(df -BM --output=used "$WORK_DIR/armbian-root" | tail -1 | tr -d 'M ')
@@ -103,10 +104,12 @@ mkfs.ext4 -L data "$OUT_DATA"
 # Copy boot partition
 mkdir -p "$WORK_DIR/out-boot"
 mount "$OUT_BOOT" "$WORK_DIR/out-boot"
-# Use -rL to dereference symlinks (vfat doesn't support them) and skip ownership preservation
-cp -rL --no-preserve=ownership "$WORK_DIR/armbian-boot"/* "$WORK_DIR/out-boot/"
+if [[ "$SEPARATE_BOOT" == "true" ]]; then
+    # 2-partition: copy firmware files, dereference symlinks for vfat
+    cp -rL --no-preserve=ownership "$WORK_DIR/armbian-boot"/* "$WORK_DIR/out-boot/"
+fi
 
-# Install RAUC-aware boot script
+# Install RAUC-aware boot script (overrides default boot.scr)
 mkimage -C none -A arm64 -T script -d "$ROOT/rauc/uboot-boot.cmd" "$WORK_DIR/out-boot/boot.scr"
 umount "$WORK_DIR/out-boot"
 
