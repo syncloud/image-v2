@@ -117,7 +117,7 @@ docker export "$CONTAINER_NAME" | tar -C "$WORK_DIR/rootfs" -xf -
 # Clone rootfs-a to rootfs-b again (now includes platform snap)
 umount "$WORK_DIR/rootfs"
 echo "=== Cloning rootfs-a to rootfs-b ==="
-dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M status=progress
+dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M
 e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
 
 echo "=== Platform snap installed into image ==="
