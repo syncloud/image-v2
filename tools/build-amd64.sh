@@ -33,15 +33,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Create image: 256M ESP + 2G rootfs-a + 2G rootfs-b + 1G data
-IMAGE_SIZE=$((256 + 2048 + 2048 + 1024))
+# Create image: 256M ESP + 4G rootfs-a + 4G rootfs-b + 1G data
+IMAGE_SIZE=$((256 + 4096 + 4096 + 1024))
 truncate -s ${IMAGE_SIZE}M "$IMAGE"
 
 # Partition with GPT labels
 sgdisk -Z "$IMAGE"
 sgdisk -n 1:0:+256M  -t 1:ef00 -c 1:esp       "$IMAGE"
-sgdisk -n 2:0:+2G    -t 2:8300 -c 2:rootfs-a   "$IMAGE"
-sgdisk -n 3:0:+2G    -t 3:8300 -c 3:rootfs-b   "$IMAGE"
+sgdisk -n 2:0:+4G    -t 2:8300 -c 2:rootfs-a   "$IMAGE"
+sgdisk -n 3:0:+4G    -t 3:8300 -c 3:rootfs-b   "$IMAGE"
 sgdisk -n 4:0:0      -t 4:8300 -c 4:data        "$IMAGE"
 
 # Setup loop device
