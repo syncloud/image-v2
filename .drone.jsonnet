@@ -1,3 +1,5 @@
+local dind = "20.10.21-dind";
+
 local build(board, arch) = {
     local board_dir = "boards/" + board,
     local tool = if arch == "amd64" then "build-amd64.sh" else "build-arm64.sh",
@@ -19,6 +21,18 @@ local build(board, arch) = {
             "ln -sf gutsy /usr/share/debootstrap/scripts/noble",
             "./tools/" + tool + " " + board_dir,
         ],
+        privileged: true
+    },
+    {
+        name: "platform",
+        image: "docker:" + dind,
+        commands: [
+            "./tools/install-platform.sh " + board_dir,
+        ],
+        volumes: [{
+            name: "dockersock",
+            path: "/var/run"
+        }],
         privileged: true
     },
     {
@@ -77,6 +91,19 @@ local build(board, arch) = {
         when: {
             status: ["success", "failure"]
         }
+    }],
+    services: [{
+        name: "docker",
+        image: "docker:" + dind,
+        privileged: true,
+        volumes: [{
+            name: "dockersock",
+            path: "/var/run"
+        }]
+    }],
+    volumes: [{
+        name: "dockersock",
+        temp: {}
     }]
 };
 
