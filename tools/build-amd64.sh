@@ -70,6 +70,15 @@ mount --bind /dev "$ROOTFS_DIR/dev"
 mount --bind /proc "$ROOTFS_DIR/proc"
 mount --bind /sys "$ROOTFS_DIR/sys"
 
+# Enable universe repo (rauc is in universe)
+cat > "$ROOTFS_DIR/etc/apt/sources.list.d/ubuntu.sources" <<SOURCES
+Types: deb
+URIs: http://archive.ubuntu.com/ubuntu
+Suites: noble noble-updates
+Components: main universe
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+SOURCES
+
 # Install kernel, GRUB, RAUC
 chroot "$ROOTFS_DIR" apt-get update
 chroot "$ROOTFS_DIR" apt-get install -y \

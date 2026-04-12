@@ -103,7 +103,8 @@ mkfs.ext4 -L data "$OUT_DATA"
 # Copy boot partition
 mkdir -p "$WORK_DIR/out-boot"
 mount "$OUT_BOOT" "$WORK_DIR/out-boot"
-cp -a "$WORK_DIR/armbian-boot"/* "$WORK_DIR/out-boot/"
+# Use -rL to dereference symlinks (vfat doesn't support them) and skip ownership preservation
+cp -rL --no-preserve=ownership "$WORK_DIR/armbian-boot"/* "$WORK_DIR/out-boot/"
 
 # Install RAUC-aware boot script
 mkimage -C none -A arm64 -T script -d "$ROOT/rauc/uboot-boot.cmd" "$WORK_DIR/out-boot/boot.scr"
