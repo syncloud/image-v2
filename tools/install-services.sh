@@ -58,29 +58,38 @@ echo "arch: $ARCH"
 wget -O "$ROOTFS/tmp/snapd.tar.gz" "http://apps.syncloud.org/apps/snapd-${SNAPD_VERSION}-${ARCH}.tar.gz"
 chroot "$ROOTFS" bash -c "cd /tmp && tar xzf snapd.tar.gz && ./snapd/install.sh"
 
-# Install platform snap (start snapd temporarily)
+# Install platform snap (start snapd temporarily with syncloud store URL)
 echo "=== Installing platform snap ==="
 chroot "$ROOTFS" bash -c '
+export SNAPPY_FORCE_API_URL=https://api.store.syncloud.org
+export SNAPD_CONFIGURE_HOOK_TIMEOUT=2h
+echo "Starting snapd with SNAPPY_FORCE_API_URL=$SNAPPY_FORCE_API_URL"
 /usr/lib/snapd/snapd &
 SNAPD_PID=$!
 echo "snapd started with PID $SNAPD_PID, waiting for socket..."
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
     if [ -S /run/snapd.socket ]; then
         echo "snapd socket ready after ${i}s"
         break
     fi
     sleep 1
 done
+if [ ! -S /run/snapd.socket ]; then
+    echo "ERROR: snapd socket not found after 60s"
+    ls -la /run/snapd* 2>/dev/null || echo "no snapd files in /run"
+    exit 1
+fi
 echo "Attempting snap install platform..."
 for i in $(seq 1 10); do
     if snap install platform; then
         echo "platform snap installed successfully"
         break
     fi
-    echo "retry $i"
+    echo "retry $i, checking if snapd is alive..."
+    kill -0 $SNAPD_PID 2>/dev/null && echo "snapd still running" || echo "WARNING: snapd died"
     sleep 10
 done
-snap list
+snap list || echo "snap list failed"
 echo "Stopping snapd..."
 kill $SNAPD_PID 2>/dev/null || true
 wait $SNAPD_PID 2>/dev/null || true
