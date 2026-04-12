@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/sh -ex
 
 # Install platform snap by booting rootfs in Docker with systemd
 # This mirrors the v1 rootfs approach: docker run with /sbin/init, then snap install
@@ -6,13 +6,13 @@
 #
 # Usage: ./tools/install-platform.sh <board-dir>
 
-apk add --no-cache bash kpartx e2fsprogs e2fsprogs-extra
+apk add --no-cache kpartx e2fsprogs e2fsprogs-extra
 
-DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(dirname "$DIR")
 
 BOARD_DIR=$1
-source "$BOARD_DIR/board.conf"
+. "$BOARD_DIR/board.conf"
 BOARD_NAME=$(basename "$BOARD_DIR")
 
 IMAGE="$ROOT/output/syncloud-${BOARD_NAME}.img"
@@ -23,6 +23,7 @@ mkdir -p "$WORK_DIR"
 
 echo "=== Mounting image to extract rootfs ==="
 LOOP=$(losetup --find --show "$IMAGE")
+echo "loop device: $LOOP"
 kpartx -avs "$LOOP"
 LOOP_NAME=$(basename "$LOOP")
 
@@ -54,33 +55,53 @@ docker run -d --privileged --name "$CONTAINER_NAME" "$CONTAINER_NAME" /sbin/init
 
 # Wait for systemd to be ready
 echo "=== Waiting for systemd ==="
-for i in $(seq 1 60); do
-    if docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null | grep -qE "running|degraded"; then
-        echo "systemd ready after ${i}s"
-        break
-    fi
-    echo "waiting... ($i)"
+SYSTEMD_READY=false
+i=0
+while [ $i -lt 60 ]; do
+    i=$((i + 1))
+    STATUS=$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null || echo "not-ready")
+    echo "systemd status: $STATUS ($i)"
+    case "$STATUS" in
+        running|degraded)
+            SYSTEMD_READY=true
+            echo "systemd ready after ${i} attempts"
+            break
+            ;;
+    esac
     sleep 2
 done
+if [ "$SYSTEMD_READY" = "false" ]; then
+    echo "ERROR: systemd failed to start"
+    docker logs "$CONTAINER_NAME" 2>&1 | tail -30
+    exit 1
+fi
 
 # Show snapd status
 echo "=== snapd status ==="
 docker exec "$CONTAINER_NAME" systemctl status snapd.service || true
-docker exec "$CONTAINER_NAME" snap version || true
+docker exec "$CONTAINER_NAME" snap version
 
 # Install platform snap
 echo "=== Installing platform snap ==="
-docker exec "$CONTAINER_NAME" bash -c '
-for i in $(seq 1 10); do
-    if snap install platform; then
+PLATFORM_INSTALLED=false
+i=0
+while [ $i -lt 10 ]; do
+    i=$((i + 1))
+    if docker exec "$CONTAINER_NAME" snap install platform; then
         echo "platform snap installed successfully"
+        PLATFORM_INSTALLED=true
         break
     fi
     echo "retry $i"
     sleep 10
 done
-snap list
-'
+if [ "$PLATFORM_INSTALLED" = "false" ]; then
+    echo "ERROR: failed to install platform snap"
+    docker exec "$CONTAINER_NAME" snap list || true
+    docker exec "$CONTAINER_NAME" journalctl -u snapd --no-pager -n 50 || true
+    exit 1
+fi
+docker exec "$CONTAINER_NAME" snap list
 
 # Stop container
 echo "=== Stopping container ==="
