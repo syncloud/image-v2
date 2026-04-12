@@ -120,4 +120,8 @@ echo "=== Cloning rootfs-a to rootfs-b ==="
 dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M
 e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
 
-echo "=== Platform snap installed into image ==="
+# Compress image
+echo "=== Compressing image with xz ==="
+apk add --no-cache xz
+xz -T0 "$IMAGE"
+echo "=== Done: ${IMAGE}.xz ==="
