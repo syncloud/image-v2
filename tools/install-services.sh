@@ -17,6 +17,7 @@ source "$BOARD_DIR/board.conf"
 mount --bind /dev "$ROOTFS/dev"
 mount --bind /proc "$ROOTFS/proc"
 mount --bind /sys "$ROOTFS/sys"
+cp /etc/resolv.conf "$ROOTFS/etc/resolv.conf" 2>/dev/null || true
 
 cleanup_chroot() {
     umount "$ROOTFS/sys" 2>/dev/null || true

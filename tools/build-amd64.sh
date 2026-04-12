@@ -85,6 +85,7 @@ umount "$ROOTFS_DIR/dev"
 "$ROOT/tools/install-services.sh" "$ROOTFS_DIR" "$BOARD_DIR"
 
 # Install GRUB to ESP
+mkdir -p "$ROOTFS_DIR/boot/efi"
 mount "$ESP" "$ROOTFS_DIR/boot/efi"
 mount --bind /dev "$ROOTFS_DIR/dev"
 mount --bind /proc "$ROOTFS_DIR/proc"
