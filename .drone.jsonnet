@@ -110,8 +110,8 @@ local build(board, arch) = {
 [
     build(board.name, board.arch)
     for board in [
-        { name: "raspberrypi-64", arch: "arm64" },
         { name: "odroid-hc4", arch: "arm64" },
+        { name: "raspberrypi-64", arch: "arm64" },
         { name: "odroid-n2", arch: "arm64" },
         { name: "amd64-uefi", arch: "amd64" },
     ]
