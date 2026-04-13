@@ -59,7 +59,7 @@ SYSTEMD_READY=false
 i=0
 while [ $i -lt 60 ]; do
     i=$((i + 1))
-    STATUS=$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null | head -1 || echo "not-ready")
+    STATUS=$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null | head -1 | tr -d '[:space:]' || echo "not-ready")
     echo "systemd status: $STATUS ($i)"
     if [ "$STATUS" = "running" ] || [ "$STATUS" = "degraded" ]; then
         SYSTEMD_READY=true
