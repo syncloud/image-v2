@@ -75,7 +75,11 @@ if [ "$SYSTEMD_READY" = "false" ]; then
     exit 1
 fi
 
-# Show snapd status
+# Ensure snapd is running (in maintenance mode, services may not auto-start)
+echo "=== Starting snapd ==="
+docker exec "$CONTAINER_NAME" systemctl start snapd.socket || true
+docker exec "$CONTAINER_NAME" systemctl start snapd.service || true
+sleep 5
 echo "=== snapd status ==="
 docker exec "$CONTAINER_NAME" systemctl status snapd.service || true
 docker exec "$CONTAINER_NAME" snap version
