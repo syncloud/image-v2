@@ -53,15 +53,24 @@ umount "$WORK_DIR/rootfs"
 echo "=== Starting container with systemd ==="
 docker run -d --privileged --name "$CONTAINER_NAME" "$CONTAINER_NAME" /sbin/init
 
+# Docker containers don't have real disks — strip fstab and mask services that
+# block systemd from reaching a usable state (validated on ARM device via SSH)
+echo "=== Preparing container for snapd ==="
+docker exec "$CONTAINER_NAME" sh -c 'echo "tmpfs /tmp tmpfs defaults,nosuid 0 0" > /etc/fstab'
+docker exec "$CONTAINER_NAME" systemctl mask armbian-resize-filesystem.service 2>/dev/null || true
+docker exec "$CONTAINER_NAME" systemctl mask syncloud-data-init.service 2>/dev/null || true
+docker exec "$CONTAINER_NAME" systemctl mask systemd-remount-fs.service 2>/dev/null || true
+docker exec "$CONTAINER_NAME" systemctl daemon-reload
+
 # Wait for systemd to be ready
 echo "=== Waiting for systemd ==="
 SYSTEMD_READY=false
 i=0
-while [ $i -lt 60 ]; do
+while [ $i -lt 120 ]; do
     i=$((i + 1))
     STATUS=$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null | head -1 | tr -d '[:space:]' || echo "not-ready")
     echo "systemd status: $STATUS ($i)"
-    if [ "$STATUS" = "running" ] || [ "$STATUS" = "degraded" ] || [ "$STATUS" = "maintenance" ]; then
+    if [ "$STATUS" = "running" ] || [ "$STATUS" = "degraded" ]; then
         SYSTEMD_READY=true
         echo "systemd ready after ${i} attempts (status: $STATUS)"
         break
@@ -69,16 +78,16 @@ while [ $i -lt 60 ]; do
     sleep 2
 done
 if [ "$SYSTEMD_READY" = "false" ]; then
-    echo "ERROR: systemd failed to start"
-    docker logs "$CONTAINER_NAME" 2>&1 | tail -30
+    echo "ERROR: systemd failed to reach running/degraded state"
+    docker exec "$CONTAINER_NAME" systemctl list-jobs 2>/dev/null | head -20 || true
     docker exec "$CONTAINER_NAME" systemctl list-units --failed 2>/dev/null || true
     exit 1
 fi
 
-# Ensure snapd is running (in maintenance mode, services may not auto-start)
+# Start snapd
 echo "=== Starting snapd ==="
-docker exec "$CONTAINER_NAME" systemctl start snapd.socket || true
-docker exec "$CONTAINER_NAME" systemctl start snapd.service || true
+docker exec "$CONTAINER_NAME" systemctl start snapd.socket
+docker exec "$CONTAINER_NAME" systemctl start snapd.service
 sleep 5
 echo "=== snapd status ==="
 docker exec "$CONTAINER_NAME" systemctl status snapd.service || true
