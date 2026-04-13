@@ -61,7 +61,7 @@ while [ $i -lt 60 ]; do
     i=$((i + 1))
     STATUS=$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null | head -1 | tr -d '[:space:]' || echo "not-ready")
     echo "systemd status: $STATUS ($i)"
-    if [ "$STATUS" = "running" ] || [ "$STATUS" = "degraded" ]; then
+    if [ "$STATUS" = "running" ] || [ "$STATUS" = "degraded" ] || [ "$STATUS" = "maintenance" ]; then
         SYSTEMD_READY=true
         echo "systemd ready after ${i} attempts (status: $STATUS)"
         break
