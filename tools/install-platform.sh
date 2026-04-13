@@ -60,6 +60,9 @@ docker exec "$CONTAINER_NAME" sh -c 'echo "tmpfs /tmp tmpfs defaults,nosuid 0 0"
 docker exec "$CONTAINER_NAME" systemctl mask armbian-resize-filesystem.service 2>/dev/null || true
 docker exec "$CONTAINER_NAME" systemctl mask syncloud-data-init.service 2>/dev/null || true
 docker exec "$CONTAINER_NAME" systemctl mask systemd-remount-fs.service 2>/dev/null || true
+docker exec "$CONTAINER_NAME" systemctl mask systemd-networkd.service 2>/dev/null || true
+docker exec "$CONTAINER_NAME" systemctl mask systemd-networkd.socket 2>/dev/null || true
+docker exec "$CONTAINER_NAME" systemctl mask systemd-networkd-wait-online.service 2>/dev/null || true
 docker exec "$CONTAINER_NAME" systemctl daemon-reload
 
 # Wait for systemd to be ready
