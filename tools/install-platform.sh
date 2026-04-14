@@ -43,6 +43,15 @@ trap cleanup EXIT
 mkdir -p "$WORK_DIR/rootfs"
 mount "/dev/mapper/${LOOP_NAME}p2" "$WORK_DIR/rootfs"
 
+# Prepare rootfs for Docker: strip fstab and mask services that break in containers
+# Must be done BEFORE docker run so systemd never starts them
+echo "=== Preparing rootfs for Docker ==="
+echo "tmpfs /tmp tmpfs defaults,nosuid 0 0" > "$WORK_DIR/rootfs/etc/fstab"
+for svc in armbian-resize-filesystem syncloud-data-init systemd-remount-fs systemd-networkd systemd-networkd-wait-online; do
+    ln -sf /dev/null "$WORK_DIR/rootfs/etc/systemd/system/${svc}.service" 2>/dev/null || true
+done
+ln -sf /dev/null "$WORK_DIR/rootfs/etc/systemd/system/systemd-networkd.socket" 2>/dev/null || true
+
 # Export rootfs to Docker
 echo "=== Importing rootfs into Docker ==="
 tar -C "$WORK_DIR/rootfs" -cf - . | docker import - "$CONTAINER_NAME"
@@ -52,18 +61,6 @@ umount "$WORK_DIR/rootfs"
 # Boot container with systemd
 echo "=== Starting container with systemd ==="
 docker run -d --privileged --name "$CONTAINER_NAME" "$CONTAINER_NAME" /sbin/init
-
-# Docker containers don't have real disks — strip fstab and mask services that
-# block systemd from reaching a usable state (validated on ARM device via SSH)
-echo "=== Preparing container for snapd ==="
-docker exec "$CONTAINER_NAME" sh -c 'echo "tmpfs /tmp tmpfs defaults,nosuid 0 0" > /etc/fstab'
-docker exec "$CONTAINER_NAME" systemctl mask armbian-resize-filesystem.service 2>/dev/null || true
-docker exec "$CONTAINER_NAME" systemctl mask syncloud-data-init.service 2>/dev/null || true
-docker exec "$CONTAINER_NAME" systemctl mask systemd-remount-fs.service 2>/dev/null || true
-docker exec "$CONTAINER_NAME" systemctl mask systemd-networkd.service 2>/dev/null || true
-docker exec "$CONTAINER_NAME" systemctl mask systemd-networkd.socket 2>/dev/null || true
-docker exec "$CONTAINER_NAME" systemctl mask systemd-networkd-wait-online.service 2>/dev/null || true
-docker exec "$CONTAINER_NAME" systemctl daemon-reload
 
 # Wait for systemd to be ready
 echo "=== Waiting for systemd ==="
