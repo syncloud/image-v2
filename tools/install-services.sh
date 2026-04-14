@@ -46,8 +46,8 @@ chroot "$ROOTFS" nslookup ports.ubuntu.com 2>/dev/null || echo "nslookup not ava
 
 # Install rauc
 echo "=== Installing rauc ==="
-chroot "$ROOTFS" apt-get update
-chroot "$ROOTFS" apt-get install -y rauc
+chroot "$ROOTFS" bash -c "DEBIAN_FRONTEND=noninteractive apt-get update"
+chroot "$ROOTFS" bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold rauc"
 
 # Install snapd (syncloud fork)
 echo "=== Installing snapd ==="

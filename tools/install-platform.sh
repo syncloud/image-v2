@@ -116,25 +116,30 @@ fi
 docker exec "$CONTAINER_NAME" snap list
 
 # Stop container
-echo "=== Stopping container ==="
+echo "=== Stopping container ($(date)) ==="
 docker stop "$CONTAINER_NAME"
 
 # Export container back and write to rootfs-a
-echo "=== Writing back to image ==="
+echo "=== Writing back to image ($(date)) ==="
 mount "/dev/mapper/${LOOP_NAME}p2" "$WORK_DIR/rootfs"
 
 # Clear rootfs and replace with container export
+echo "=== Clearing rootfs ($(date)) ==="
 rm -rf "$WORK_DIR/rootfs"/*
+echo "=== Docker export ($(date)) ==="
 docker export "$CONTAINER_NAME" | tar -C "$WORK_DIR/rootfs" -xf -
+echo "=== Docker export done ($(date)) ==="
 
 # Clone rootfs-a to rootfs-b again (now includes platform snap)
 umount "$WORK_DIR/rootfs"
-echo "=== Cloning rootfs-a to rootfs-b ==="
+echo "=== Cloning rootfs-a to rootfs-b ($(date)) ==="
 dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M
 e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
+echo "=== Clone done ($(date)) ==="
 
 # Compress image
-echo "=== Compressing image with xz ==="
+echo "=== Compressing image with xz ($(date)) ==="
 apk add --no-cache xz
 xz -T0 "$IMAGE"
+echo "=== Compression done ($(date)) ==="
 echo "=== Done: ${IMAGE}.xz ==="
