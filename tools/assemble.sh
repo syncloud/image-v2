@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 
 # Write rootfs tarball back into image, clone to slot B, compress with xz
-# Runs after install-platform.sh exports the Docker container as a tar
+# Each step has echo markers to identify hangs in CI logs
 #
 # Usage: ./tools/assemble.sh <board-dir>
 
@@ -23,8 +23,11 @@ fi
 
 mkdir -p "$WORK_DIR"
 
-echo "=== Mounting image ($(date)) ==="
+echo "=== losetup ($(date)) ==="
 LOOP=$(losetup --find --show "$IMAGE")
+echo "loop: $LOOP"
+
+echo "=== kpartx ($(date)) ==="
 kpartx -avs "$LOOP"
 LOOP_NAME=$(basename "$LOOP")
 
@@ -36,27 +39,28 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Write rootfs tar to partition
+echo "=== mount ($(date)) ==="
 mkdir -p "$WORK_DIR/rootfs"
 mount "/dev/mapper/${LOOP_NAME}p2" "$WORK_DIR/rootfs"
 
-echo "=== Writing rootfs to image ($(date)) ==="
+echo "=== tar extract ($(date)) ==="
 rm -rf "$WORK_DIR/rootfs"/*
 tar -C "$WORK_DIR/rootfs" -xf "$ROOTFS_TAR"
 
+echo "=== umount ($(date)) ==="
 umount "$WORK_DIR/rootfs"
 
-# Clone rootfs-a to rootfs-b
-echo "=== Cloning rootfs-a to rootfs-b ($(date)) ==="
+echo "=== dd clone ($(date)) ==="
 dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M status=progress
+echo "=== e2label ($(date)) ==="
 e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
 
-# Cleanup loop before compression
+echo "=== kpartx cleanup ($(date)) ==="
 kpartx -d "$LOOP"
+echo "=== losetup cleanup ($(date)) ==="
 losetup -d "$LOOP"
 LOOP=""
 
-# Compress
-echo "=== Compressing image with xz ($(date)) ==="
+echo "=== xz compress ($(date)) ==="
 xz -T0 "$IMAGE"
-echo "=== Done: ${IMAGE}.xz ($(date)) ==="
+echo "=== done ($(date)) ==="
