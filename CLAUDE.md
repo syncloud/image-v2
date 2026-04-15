@@ -19,6 +19,17 @@ import json,sys; [print(l.get('out',''), end='') for l in json.load(sys.stdin)]
 " | tail -80
 ```
 
+For running/stuck steps (logs not flushed to DB yet), use the stream API:
+```
+timeout 5 curl -s -N "http://ci.syncloud.org:8080/api/stream/syncloud/image-v2/{N}/{stage}/{step}" | grep "^data:" | tail -10 | python3 -c "
+import json,sys
+for line in sys.stdin:
+    if line.strip().startswith('data: '):
+        try: print(json.loads(line.strip()[6:]).get('out',''), end='')
+        except: pass
+"
+```
+
 # CI
 
 http://ci.syncloud.org:8080/syncloud/image-v2
