@@ -97,9 +97,26 @@ umount "$ROOTFS_DIR/sys"
 umount "$ROOTFS_DIR/proc"
 umount "$ROOTFS_DIR/dev"
 
-# Clone rootfs-a to rootfs-b
+# Prepare rootfs for Docker: mask services that break in containers
+echo "=== Preparing rootfs for Docker platform step ==="
+SAVED_FSTAB=$(cat "$ROOTFS_DIR/etc/fstab")
+echo "tmpfs /tmp tmpfs defaults,nosuid 0 0" > "$ROOTFS_DIR/etc/fstab"
+for svc in syncloud-data-init systemd-remount-fs; do
+    ln -sf /dev/null "$ROOTFS_DIR/etc/systemd/system/${svc}.service" 2>/dev/null || true
+done
+
+# Export rootfs as tar for the Docker-based platform step
+echo "=== Exporting rootfs tar ==="
+ROOTFS_TAR="$ROOT/build/rootfs-amd64-uefi.tar"
+tar -C "$ROOTFS_DIR" -cf "$ROOTFS_TAR" .
+echo "rootfs tar: $(ls -lh "$ROOTFS_TAR")"
+
+# Restore real fstab
+echo "$SAVED_FSTAB" > "$ROOTFS_DIR/etc/fstab"
+for svc in syncloud-data-init systemd-remount-fs; do
+    rm -f "$ROOTFS_DIR/etc/systemd/system/${svc}.service" 2>/dev/null || true
+done
+
 umount "$ROOTFS_DIR"
-dd if="$ROOTFS_A" of="$ROOTFS_B" bs=4M status=progress
-e2label "$ROOTFS_B" rootfs-b
 
 echo "Image built: $IMAGE"

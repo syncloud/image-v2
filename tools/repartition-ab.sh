@@ -112,10 +112,29 @@ ARMBIAN_LOOP=""
 # Install services via chroot (works because runner arch matches target)
 "$ROOT/tools/install-services.sh" "$WORK_DIR/out-rootfs" "$BOARD_DIR"
 
-umount "$WORK_DIR/out-rootfs"
+# Prepare rootfs for Docker: mask services that break in containers
+# This is baked into the tar so install-platform.sh doesn't need to modify it
+echo "=== Preparing rootfs for Docker platform step ==="
+SAVED_FSTAB=$(cat "$WORK_DIR/out-rootfs/etc/fstab")
+echo "tmpfs /tmp tmpfs defaults,nosuid 0 0" > "$WORK_DIR/out-rootfs/etc/fstab"
+for svc in armbian-resize-filesystem syncloud-data-init systemd-remount-fs systemd-networkd systemd-networkd-wait-online; do
+    ln -sf /dev/null "$WORK_DIR/out-rootfs/etc/systemd/system/${svc}.service" 2>/dev/null || true
+done
+ln -sf /dev/null "$WORK_DIR/out-rootfs/etc/systemd/system/systemd-networkd.socket" 2>/dev/null || true
 
-# Clone rootfs-a to rootfs-b
-dd if="/dev/mapper/${OUT_LOOP_NAME}p2" of="/dev/mapper/${OUT_LOOP_NAME}p3" bs=4M status=progress
-e2label "/dev/mapper/${OUT_LOOP_NAME}p3" rootfs-b
+# Export rootfs as tar for the Docker-based platform step
+echo "=== Exporting rootfs tar ==="
+ROOTFS_TAR="$ROOT/build/rootfs-${BOARD_NAME}.tar"
+tar -C "$WORK_DIR/out-rootfs" -cf "$ROOTFS_TAR" .
+echo "rootfs tar: $(ls -lh "$ROOTFS_TAR")"
+
+# Restore real fstab in the image (Docker tar has the masked version)
+echo "$SAVED_FSTAB" > "$WORK_DIR/out-rootfs/etc/fstab"
+for svc in armbian-resize-filesystem syncloud-data-init systemd-remount-fs systemd-networkd systemd-networkd-wait-online; do
+    rm -f "$WORK_DIR/out-rootfs/etc/systemd/system/${svc}.service" 2>/dev/null || true
+done
+rm -f "$WORK_DIR/out-rootfs/etc/systemd/system/systemd-networkd.socket" 2>/dev/null || true
+
+umount "$WORK_DIR/out-rootfs"
 
 echo "Image built: $OUTPUT_IMAGE"

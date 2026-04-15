@@ -15,8 +15,8 @@ local build(board, arch) = {
         name: "build",
         image: "debian:bookworm",
         commands: [
-            "apt-get update",
-            "apt-get install -y git bash sudo wget curl gdisk u-boot-tools " +
+            "DEBIAN_FRONTEND=noninteractive apt-get update",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y git bash sudo wget curl gdisk u-boot-tools " +
             "squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
             "ln -sf gutsy /usr/share/debootstrap/scripts/noble",
             "./tools/" + tool + " " + board_dir,
@@ -32,15 +32,24 @@ local build(board, arch) = {
         volumes: [{
             name: "dockersock",
             path: "/var/run"
-        }],
+        }]
+    },
+    {
+        name: "assemble",
+        image: "debian:bookworm",
+        commands: [
+            "DEBIAN_FRONTEND=noninteractive apt-get update",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y kpartx e2fsprogs xz-utils",
+            "./tools/assemble.sh " + board_dir,
+        ],
         privileged: true
     },
     {
         name: "bundle",
         image: "debian:bookworm",
         commands: [
-            "apt-get update",
-            "apt-get install -y squashfs-tools rauc kpartx",
+            "DEBIAN_FRONTEND=noninteractive apt-get update",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y squashfs-tools rauc kpartx",
             "./tools/build-bundle.sh " + board_dir + " ${DRONE_TAG:-dev}",
         ],
         privileged: true,
@@ -84,7 +93,6 @@ local build(board, arch) = {
         name: "cleanup",
         image: "debian:bookworm-slim",
         commands: [
-            "apt-get update && apt-get install -y kpartx dmsetup || true",
             "./tools/cleanup.sh",
         ],
         privileged: true,

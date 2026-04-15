@@ -2,11 +2,12 @@
 
 # Install platform snap by booting rootfs in Docker with systemd
 # This mirrors the v1 rootfs approach: docker run with /sbin/init, then snap install
-# Runs inside docker:dind Alpine image — installs deps via apk
+#
+# ONLY does Docker operations — no losetup/kpartx (those break the Drone runner).
+# Expects rootfs tarball at build/rootfs-<board>.tar (created by build step).
+# Produces build/rootfs-platform-<board>.tar (with platform snap installed).
 #
 # Usage: ./tools/install-platform.sh <board-dir>
-
-apk add --no-cache multipath-tools e2fsprogs e2fsprogs-extra util-linux losetup
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(dirname "$DIR")
@@ -15,17 +16,14 @@ BOARD_DIR=$1
 . "$BOARD_DIR/board.conf"
 BOARD_NAME=$(basename "$BOARD_DIR")
 
-IMAGE="$ROOT/output/syncloud-${BOARD_NAME}.img"
-WORK_DIR="$ROOT/build/platform-$BOARD_NAME"
+ROOTFS_TAR="$ROOT/build/rootfs-${BOARD_NAME}.tar"
+OUTPUT_TAR="$ROOT/build/rootfs-platform-${BOARD_NAME}.tar"
 CONTAINER_NAME="syncloud-platform-$BOARD_NAME"
 
-mkdir -p "$WORK_DIR"
-
-echo "=== Mounting image to extract rootfs ==="
-LOOP=$(losetup --find --show "$IMAGE")
-echo "loop device: $LOOP"
-kpartx -avs "$LOOP"
-LOOP_NAME=$(basename "$LOOP")
+if [ ! -f "$ROOTFS_TAR" ]; then
+    echo "ERROR: rootfs tarball not found: $ROOTFS_TAR"
+    exit 1
+fi
 
 cleanup() {
     set +e
@@ -33,33 +31,15 @@ cleanup() {
     docker stop "$CONTAINER_NAME" 2>/dev/null
     docker rm "$CONTAINER_NAME" 2>/dev/null
     docker rmi "$CONTAINER_NAME" 2>/dev/null
-    umount "$WORK_DIR/rootfs" 2>/dev/null
-    kpartx -d "$LOOP" 2>/dev/null
-    losetup -d "$LOOP" 2>/dev/null
 }
 trap cleanup EXIT
 
-# Mount rootfs-a (partition 2)
-mkdir -p "$WORK_DIR/rootfs"
-mount "/dev/mapper/${LOOP_NAME}p2" "$WORK_DIR/rootfs"
-
-# Prepare rootfs for Docker: strip fstab and mask services that break in containers
-# Must be done BEFORE docker run so systemd never starts them
-echo "=== Preparing rootfs for Docker ==="
-echo "tmpfs /tmp tmpfs defaults,nosuid 0 0" > "$WORK_DIR/rootfs/etc/fstab"
-for svc in armbian-resize-filesystem syncloud-data-init systemd-remount-fs systemd-networkd systemd-networkd-wait-online; do
-    ln -sf /dev/null "$WORK_DIR/rootfs/etc/systemd/system/${svc}.service" 2>/dev/null || true
-done
-ln -sf /dev/null "$WORK_DIR/rootfs/etc/systemd/system/systemd-networkd.socket" 2>/dev/null || true
-
-# Export rootfs to Docker
-echo "=== Importing rootfs into Docker ==="
-tar -C "$WORK_DIR/rootfs" -cf - . | docker import - "$CONTAINER_NAME"
-
-umount "$WORK_DIR/rootfs"
+# Import rootfs into Docker
+echo "=== Importing rootfs into Docker ($(date)) ==="
+docker import "$ROOTFS_TAR" "$CONTAINER_NAME"
 
 # Boot container with systemd
-echo "=== Starting container with systemd ==="
+echo "=== Starting container with systemd ($(date)) ==="
 docker run -d --privileged --name "$CONTAINER_NAME" "$CONTAINER_NAME" /sbin/init
 
 # Wait for systemd to be ready
@@ -85,7 +65,7 @@ if [ "$SYSTEMD_READY" = "false" ]; then
 fi
 
 # Start snapd
-echo "=== Starting snapd ==="
+echo "=== Starting snapd ($(date)) ==="
 docker exec "$CONTAINER_NAME" systemctl start snapd.socket
 docker exec "$CONTAINER_NAME" systemctl start snapd.service
 sleep 5
@@ -94,7 +74,7 @@ docker exec "$CONTAINER_NAME" systemctl status snapd.service || true
 docker exec "$CONTAINER_NAME" snap version
 
 # Install platform snap
-echo "=== Installing platform snap ==="
+echo "=== Installing platform snap ($(date)) ==="
 PLATFORM_INSTALLED=false
 i=0
 while [ $i -lt 10 ]; do
@@ -115,31 +95,10 @@ if [ "$PLATFORM_INSTALLED" = "false" ]; then
 fi
 docker exec "$CONTAINER_NAME" snap list
 
-# Stop container
+# Stop and export
 echo "=== Stopping container ($(date)) ==="
 docker stop "$CONTAINER_NAME"
 
-# Export container back and write to rootfs-a
-echo "=== Writing back to image ($(date)) ==="
-mount "/dev/mapper/${LOOP_NAME}p2" "$WORK_DIR/rootfs"
-
-# Clear rootfs and replace with container export
-echo "=== Clearing rootfs ($(date)) ==="
-rm -rf "$WORK_DIR/rootfs"/*
-echo "=== Docker export ($(date)) ==="
-docker export "$CONTAINER_NAME" | tar -C "$WORK_DIR/rootfs" -xf -
-echo "=== Docker export done ($(date)) ==="
-
-# Clone rootfs-a to rootfs-b again (now includes platform snap)
-umount "$WORK_DIR/rootfs"
-echo "=== Cloning rootfs-a to rootfs-b ($(date)) ==="
-dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M
-e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
-echo "=== Clone done ($(date)) ==="
-
-# Compress image
-echo "=== Compressing image with xz ($(date)) ==="
-apk add --no-cache xz
-xz -T0 "$IMAGE"
-echo "=== Compression done ($(date)) ==="
-echo "=== Done: ${IMAGE}.xz ==="
+echo "=== Exporting container ($(date)) ==="
+docker export "$CONTAINER_NAME" > "$OUTPUT_TAR"
+echo "=== Export done: $(ls -lh "$OUTPUT_TAR") ==="
