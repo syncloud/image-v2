@@ -11,29 +11,29 @@ local build(board, arch) = {
         arch: arch
     },
     steps: [
-    //{
-    //    name: "build",
-    //    image: "debian:bookworm",
-    //    commands: [
-    //        "DEBIAN_FRONTEND=noninteractive apt-get update",
-    //        "DEBIAN_FRONTEND=noninteractive apt-get install -y git bash sudo wget curl gdisk u-boot-tools " +
-    //        "squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
-    //        "ln -sf gutsy /usr/share/debootstrap/scripts/noble",
-    //        "./tools/" + tool + " " + board_dir,
-    //    ],
-    //    privileged: true
-    //},
-    //{
-    //    name: "platform",
-    //    image: "docker:" + dind,
-    //    commands: [
-    //        "./tools/install-platform.sh " + board_dir,
-    //    ],
-    //    volumes: [{
-    //        name: "dockersock",
-    //        path: "/var/run"
-    //    }]
-    //},
+    {
+        name: "build",
+        image: "debian:bookworm",
+        commands: [
+            "DEBIAN_FRONTEND=noninteractive apt-get update",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y git bash sudo wget curl gdisk u-boot-tools " +
+            "squashfs-tools rauc debootstrap kpartx parted e2fsprogs dosfstools xz-utils",
+            "ln -sf gutsy /usr/share/debootstrap/scripts/noble",
+            "./tools/" + tool + " " + board_dir,
+        ],
+        privileged: true
+    },
+    {
+        name: "platform",
+        image: "docker:" + dind,
+        commands: [
+            "./tools/install-platform.sh " + board_dir,
+        ],
+        volumes: [{
+            name: "dockersock",
+            path: "/var/run"
+        }]
+    },
     {
         name: "assemble",
         image: "debian:bookworm",

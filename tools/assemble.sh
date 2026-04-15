@@ -31,13 +31,14 @@ echo "=== kpartx ($(date)) ==="
 kpartx -avs "$LOOP"
 LOOP_NAME=$(basename "$LOOP")
 
-cleanup() {
-    set +e
-    umount "$WORK_DIR/rootfs" 2>/dev/null
-    kpartx -d "$LOOP" 2>/dev/null
-    losetup -d "$LOOP" 2>/dev/null
-}
-trap cleanup EXIT
+# trap disabled for debugging reboot
+#cleanup() {
+#    set +e
+#    umount "$WORK_DIR/rootfs" 2>/dev/null
+#    kpartx -d "$LOOP" 2>/dev/null
+#    losetup -d "$LOOP" 2>/dev/null
+#}
+#trap cleanup EXIT
 
 echo "=== mount ($(date)) ==="
 mkdir -p "$WORK_DIR/rootfs"
@@ -50,10 +51,8 @@ echo "=== skipping tar/dd/xz to isolate hang ==="
 echo "=== umount ($(date)) ==="
 umount "$WORK_DIR/rootfs"
 
-echo "=== kpartx cleanup ($(date)) ==="
-kpartx -d "$LOOP"
-echo "=== losetup cleanup ($(date)) ==="
-losetup -d "$LOOP"
-LOOP=""
+echo "=== skipping kpartx/losetup cleanup to test reboot ==="
+#kpartx -d "$LOOP"
+#losetup -d "$LOOP"
 
 echo "=== done ($(date)) ==="
