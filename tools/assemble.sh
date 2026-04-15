@@ -45,15 +45,10 @@ mount "/dev/mapper/${LOOP_NAME}p2" "$WORK_DIR/rootfs"
 
 echo "=== tar extract ($(date)) ==="
 rm -rf "$WORK_DIR/rootfs"/*
-tar -C "$WORK_DIR/rootfs" -xf "$ROOTFS_TAR"
+echo "=== skipping tar/dd/xz to isolate hang ==="
 
 echo "=== umount ($(date)) ==="
 umount "$WORK_DIR/rootfs"
-
-echo "=== dd clone ($(date)) ==="
-dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M status=progress
-echo "=== e2label ($(date)) ==="
-e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
 
 echo "=== kpartx cleanup ($(date)) ==="
 kpartx -d "$LOOP"
@@ -61,6 +56,4 @@ echo "=== losetup cleanup ($(date)) ==="
 losetup -d "$LOOP"
 LOOP=""
 
-echo "=== xz compress ($(date)) ==="
-xz -T0 "$IMAGE"
 echo "=== done ($(date)) ==="
