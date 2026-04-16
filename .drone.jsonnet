@@ -24,6 +24,17 @@ local build(board, arch) = {
     //    ...
     //},
     {
+        name: "test-docker",
+        image: "docker:" + dind,
+        commands: [
+            "docker run --privileged --rm debian:bookworm echo docker-works",
+        ],
+        volumes: [{
+            name: "dockersock",
+            path: "/var/run"
+        }]
+    },
+    {
         name: "test-losetup",
         image: "debian:bookworm",
         commands: [
