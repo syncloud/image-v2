@@ -27,6 +27,7 @@ local build(board, arch) = {
         name: "test-docker",
         image: "docker:" + dind,
         commands: [
+            "for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; echo waiting for docker...; sleep 2; done",
             "docker run --privileged --rm debian:bookworm echo docker-works",
         ],
         volumes: [{
