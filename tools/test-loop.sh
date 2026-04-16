@@ -4,7 +4,7 @@
 # Tests each operation individually to find what crashes the HC4 kernel 5.11
 
 apt-get update
-apt-get install -y kpartx e2fsprogs
+apt-get install -y kpartx e2fsprogs gdisk
 
 echo "=== Step 1: create test image ==="
 truncate -s 100M /tmp/test.img
