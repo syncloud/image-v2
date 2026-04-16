@@ -6,12 +6,12 @@
 apt-get update
 apt-get install -y kpartx e2fsprogs gdisk
 
-echo "=== Step 1: create test image ==="
-truncate -s 100M /tmp/test.img
+echo "=== Step 1: create test image (5GB like N2) ==="
+truncate -s 5G /tmp/test.img
 echo "=== Step 2: partition ==="
 sgdisk -Z /tmp/test.img || true
-sgdisk -n 1:0:+40M -t 1:8300 -c 1:part-a /tmp/test.img
-sgdisk -n 2:0:0    -t 2:8300 -c 2:part-b /tmp/test.img
+sgdisk -n 1:0:+2G -t 1:8300 -c 1:part-a /tmp/test.img
+sgdisk -n 2:0:+2G -t 2:8300 -c 2:part-b /tmp/test.img
 
 echo "=== Step 3: losetup ==="
 LOOP=$(losetup --find --show /tmp/test.img)
@@ -30,8 +30,8 @@ echo "=== Step 6: mount ==="
 mkdir -p /tmp/mnt
 mount "/dev/mapper/${LOOP_NAME}p1" /tmp/mnt
 
-echo "=== Step 7: write data ==="
-dd if=/dev/zero of=/tmp/mnt/testfile bs=1M count=10
+echo "=== Step 7: write 1GB data ==="
+dd if=/dev/zero of=/tmp/mnt/testfile bs=1M count=1024
 sync
 
 echo "=== Step 8: umount ==="
