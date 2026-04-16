@@ -1,7 +1,8 @@
 #!/bin/bash -ex
 
 # Write rootfs tarball back into image, clone to slot B, compress with xz
-# Each step has echo markers to identify hangs in CI logs
+# IMPORTANT: must run in same container as build step to avoid kernel panic
+# on container teardown with active loop devices (N2 kernel bug)
 #
 # Usage: ./tools/assemble.sh <board-dir>
 
@@ -16,8 +17,20 @@ IMAGE="$ROOT/output/syncloud-${BOARD_NAME}.img"
 ROOTFS_TAR="$ROOT/build/rootfs-platform-${BOARD_NAME}.tar"
 WORK_DIR="$ROOT/build/assemble-$BOARD_NAME"
 
+# Wait for platform step to produce the rootfs tar
+echo "=== Waiting for rootfs tar from platform step ($(date)) ==="
+for i in $(seq 1 360); do
+    if [ -f "$ROOTFS_TAR" ]; then
+        echo "rootfs tar found after ${i} attempts: $(ls -lh "$ROOTFS_TAR")"
+        break
+    fi
+    if [ $((i % 30)) -eq 0 ]; then
+        echo "still waiting... ($i)"
+    fi
+    sleep 10
+done
 if [ ! -f "$ROOTFS_TAR" ]; then
-    echo "ERROR: rootfs tarball not found: $ROOTFS_TAR"
+    echo "ERROR: rootfs tarball not found after 1 hour: $ROOTFS_TAR"
     exit 1
 fi
 
@@ -31,14 +44,13 @@ echo "=== kpartx ($(date)) ==="
 kpartx -avs "$LOOP"
 LOOP_NAME=$(basename "$LOOP")
 
-# trap disabled for debugging reboot
-#cleanup() {
-#    set +e
-#    umount "$WORK_DIR/rootfs" 2>/dev/null
-#    kpartx -d "$LOOP" 2>/dev/null
-#    losetup -d "$LOOP" 2>/dev/null
-#}
-#trap cleanup EXIT
+cleanup() {
+    set +e
+    umount "$WORK_DIR/rootfs" 2>/dev/null
+    kpartx -d "$LOOP" 2>/dev/null
+    losetup -d "$LOOP" 2>/dev/null
+}
+trap cleanup EXIT
 
 echo "=== mount ($(date)) ==="
 mkdir -p "$WORK_DIR/rootfs"
@@ -46,13 +58,23 @@ mount "/dev/mapper/${LOOP_NAME}p2" "$WORK_DIR/rootfs"
 
 echo "=== tar extract ($(date)) ==="
 rm -rf "$WORK_DIR/rootfs"/*
-echo "=== skipping tar/dd/xz to isolate hang ==="
+tar -C "$WORK_DIR/rootfs" -xf "$ROOTFS_TAR"
+echo "=== tar done ($(date)) ==="
 
 echo "=== umount ($(date)) ==="
 umount "$WORK_DIR/rootfs"
 
-echo "=== skipping kpartx/losetup cleanup to test reboot ==="
-#kpartx -d "$LOOP"
-#losetup -d "$LOOP"
+echo "=== dd clone ($(date)) ==="
+dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M status=progress
+echo "=== e2label ($(date)) ==="
+e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
 
+echo "=== kpartx cleanup ($(date)) ==="
+kpartx -d "$LOOP"
+echo "=== losetup cleanup ($(date)) ==="
+losetup -d "$LOOP"
+LOOP=""
+
+echo "=== xz compress ($(date)) ==="
+xz -T0 "$IMAGE"
 echo "=== done ($(date)) ==="
