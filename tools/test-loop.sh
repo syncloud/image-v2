@@ -1,54 +1,49 @@
 #!/bin/bash -ex
 
-# Minimal test to reproduce kernel panic on container teardown with loop devices
-# Tests each operation individually to find what crashes the HC4 kernel 5.11
+# Test with actual N2 image from artifacts to reproduce kernel crash
 
 apt-get update
-apt-get install -y kpartx e2fsprogs gdisk
+apt-get install -y kpartx e2fsprogs gdisk wget xz-utils
 
-echo "=== Step 1: create test image (5GB like N2) ==="
-truncate -s 5G /tmp/test.img
-echo "=== Step 2: partition ==="
-sgdisk -Z /tmp/test.img || true
-sgdisk -n 1:0:+2G -t 1:8300 -c 1:part-a /tmp/test.img
-sgdisk -n 2:0:+2G -t 2:8300 -c 2:part-b /tmp/test.img
+echo "=== Step 1: download real N2 image ==="
+wget -q --progress=dot:giga -O /tmp/test.img "http://ci.syncloud.org:8081/files/image-v2/output/syncloud-odroid-n2.img"
+ls -lh /tmp/test.img
 
-echo "=== Step 3: losetup ==="
+echo "=== Step 2: losetup ==="
 LOOP=$(losetup --find --show /tmp/test.img)
 echo "loop: $LOOP"
 
-echo "=== Step 4: kpartx -avs ==="
+echo "=== Step 3: kpartx ==="
 kpartx -avs "$LOOP"
 LOOP_NAME=$(basename "$LOOP")
 ls -la /dev/mapper/${LOOP_NAME}*
 
-echo "=== Step 5: mkfs ==="
-mkfs.ext4 -L part-a "/dev/mapper/${LOOP_NAME}p1"
-mkfs.ext4 -L part-b "/dev/mapper/${LOOP_NAME}p2"
-
-echo "=== Step 6: mount ==="
+echo "=== Step 4: mount p2 ==="
 mkdir -p /tmp/mnt
-mount "/dev/mapper/${LOOP_NAME}p1" /tmp/mnt
+mount "/dev/mapper/${LOOP_NAME}p2" /tmp/mnt
+df -h /tmp/mnt
 
-echo "=== Step 7: write 1GB data ==="
+echo "=== Step 5: write 1GB to simulate tar extract ==="
 dd if=/dev/zero of=/tmp/mnt/testfile bs=1M count=1024
 sync
 
-echo "=== Step 8: umount ==="
+echo "=== Step 6: umount ==="
 umount /tmp/mnt
 
-echo "=== Step 9: dd clone ==="
-dd if="/dev/mapper/${LOOP_NAME}p1" of="/dev/mapper/${LOOP_NAME}p2" bs=4M
+echo "=== Step 7: dd clone p2->p3 ==="
+dd if="/dev/mapper/${LOOP_NAME}p2" of="/dev/mapper/${LOOP_NAME}p3" bs=4M status=progress
 sync
 
-echo "=== Step 10: kpartx -d ==="
+echo "=== Step 8: e2label ==="
+e2label "/dev/mapper/${LOOP_NAME}p3" rootfs-b
+
+echo "=== Step 9: kpartx -d ==="
 kpartx -d "$LOOP"
 
-echo "=== Step 11: losetup -d ==="
+echo "=== Step 10: losetup -d ==="
 losetup -d "$LOOP"
 
-echo "=== Step 12: sync + sleep ==="
-sync
-sleep 2
+echo "=== Step 11: xz compress ==="
+xz -T0 /tmp/test.img
 
 echo "=== ALL DONE ==="
