@@ -11,10 +11,16 @@ local build(board, arch) = {
         arch: arch
     },
     steps: [
-    //{
-    //    name: "build",
-    //    ...
-    //},
+    {
+        name: "build",
+        image: "debian:bookworm",
+        commands: [
+            "DEBIAN_FRONTEND=noninteractive apt-get update",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y wget xz-utils gdisk u-boot-tools kpartx e2fsprogs dosfstools debootstrap",
+            "./" + tool + " " + board_dir,
+        ],
+        privileged: true
+    },
     //{
     //    name: "platform",
     //    ...
@@ -23,26 +29,6 @@ local build(board, arch) = {
     //    name: "assemble",
     //    ...
     //},
-    {
-        name: "test-docker",
-        image: "docker:" + dind,
-        commands: [
-            "for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; echo waiting for docker...; sleep 2; done",
-            "docker run --privileged --rm debian:bookworm echo docker-works",
-        ],
-        volumes: [{
-            name: "dockersock",
-            path: "/var/run"
-        }]
-    },
-    {
-        name: "test-losetup",
-        image: "debian:bookworm",
-        commands: [
-            "./tools/test-loop.sh",
-        ],
-        privileged: true
-    },
     {
         name: "bundle",
         image: "debian:bookworm",
