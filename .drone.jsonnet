@@ -21,10 +21,18 @@ local build(board, arch) = {
         ],
         privileged: true
     },
-    //{
-    //    name: "platform",
-    //    ...
-    //},
+    {
+        name: "platform",
+        image: "docker:" + dind,
+        commands: [
+            "for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; echo waiting for docker...; sleep 2; done",
+            "./tools/install-platform.sh " + board_dir,
+        ],
+        volumes: [{
+            name: "dockersock",
+            path: "/var/run"
+        }]
+    },
     //{
     //    name: "assemble",
     //    ...
