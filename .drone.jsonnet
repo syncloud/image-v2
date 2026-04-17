@@ -1,5 +1,3 @@
-local dind = "20.10.21-dind";
-
 local build(board, arch) = {
     local board_dir = "boards/" + board,
     local tool = if arch == "amd64" then "tools/build-amd64.sh" else "tools/build-arm64.sh",
@@ -16,27 +14,11 @@ local build(board, arch) = {
         image: "debian:bookworm",
         commands: [
             "DEBIAN_FRONTEND=noninteractive apt-get update",
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y wget xz-utils gdisk u-boot-tools kpartx e2fsprogs dosfstools debootstrap",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y wget xz-utils gdisk u-boot-tools kpartx e2fsprogs dosfstools",
             "./" + tool + " " + board_dir,
         ],
         privileged: true
     },
-    {
-        name: "platform",
-        image: "docker:" + dind,
-        commands: [
-            "for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; echo waiting for docker...; sleep 2; done",
-            "./tools/install-platform.sh " + board_dir,
-        ],
-        volumes: [{
-            name: "dockersock",
-            path: "/var/run"
-        }]
-    },
-    //{
-    //    name: "assemble",
-    //    ...
-    //},
     {
         name: "bundle",
         image: "debian:bookworm",
@@ -81,19 +63,6 @@ local build(board, arch) = {
             status: ["success", "failure"]
         }
     }],
-    services: [{
-        name: "docker",
-        image: "docker:" + dind,
-        privileged: true,
-        volumes: [{
-            name: "dockersock",
-            path: "/var/run"
-        }]
-    }],
-    volumes: [{
-        name: "dockersock",
-        temp: {}
-    }]
 };
 
 [

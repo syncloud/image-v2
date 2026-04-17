@@ -1,8 +1,11 @@
 #!/bin/bash -ex
 
-# Build an arm64 image by downloading pre-built Armbian + RAUC A/B layout
+# Build an arm64 image using pre-built rootfs + Armbian board support
+# Downloads rootfs tarball (with snapd+platform pre-installed) and Armbian image.
+# Extracts board-specific bits (U-Boot, kernel, DTBs) from Armbian.
+# Assembles A/B partition layout, enables v2 services, compresses with xz.
+#
 # Usage: ./tools/build-arm64.sh <board-dir>
-# Example: ./tools/build-arm64.sh boards/raspberrypi-64
 
 DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT=$(dirname "$DIR")
@@ -14,20 +17,188 @@ if [[ -z "$BOARD_DIR" || ! -f "$BOARD_DIR/board.conf" ]]; then
 fi
 
 source "$BOARD_DIR/board.conf"
+BOARD_NAME=$(basename "$BOARD_DIR")
 
 OUTPUT_DIR="$ROOT/output"
-WORK_DIR="$ROOT/build/$(basename "$BOARD_DIR")"
+WORK_DIR="$ROOT/build/$BOARD_NAME"
 mkdir -p "$OUTPUT_DIR" "$WORK_DIR"
 
-# Download pre-built Armbian minimal image
+# Download pre-built rootfs (from rootfs CI)
+ROOTFS_URL="${ROOTFS_URL:-http://ci.syncloud.org:8081/files/rootfs/432-bookworm-arm64/rootfs-bookworm-arm64.tar.gz}"
+ROOTFS_TAR="$WORK_DIR/rootfs.tar.gz"
+if [[ ! -f "$ROOTFS_TAR" ]]; then
+    echo "=== Downloading rootfs ($(date)) ==="
+    wget -O "$ROOTFS_TAR" "$ROOTFS_URL" --progress=dot:giga
+fi
+echo "rootfs: $(ls -lh "$ROOTFS_TAR")"
+
+# Download Armbian image (for U-Boot, kernel, DTBs)
 ARMBIAN_IMAGE="$WORK_DIR/armbian.img"
 if [[ ! -f "$ARMBIAN_IMAGE" ]]; then
-    echo "Downloading Armbian image: $ARMBIAN_IMAGE_URL"
+    echo "=== Downloading Armbian ($(date)) ==="
     wget -O "$WORK_DIR/armbian.img.xz" "$ARMBIAN_IMAGE_URL" --progress=dot:giga
     xz -d "$WORK_DIR/armbian.img.xz"
 fi
+echo "armbian: $(ls -lh "$ARMBIAN_IMAGE")"
 
-echo "Base image: $ARMBIAN_IMAGE"
+OUTPUT_IMAGE="$OUTPUT_DIR/syncloud-${BOARD_NAME}.img"
 
-# Repartition for A/B layout
-"$ROOT/tools/repartition-ab.sh" "$ARMBIAN_IMAGE" "$BOARD_DIR" "$OUTPUT_DIR"
+cleanup() {
+    set +e
+    umount "$WORK_DIR/out-rootfs/boot" 2>/dev/null
+    umount "$WORK_DIR/out-rootfs" 2>/dev/null
+    umount "$WORK_DIR/armbian-boot" 2>/dev/null
+    umount "$WORK_DIR/armbian-root" 2>/dev/null
+    [[ -n "$OUT_LOOP" ]] && { kpartx -d "$OUT_LOOP" 2>/dev/null; losetup -d "$OUT_LOOP" 2>/dev/null; }
+    [[ -n "$ARMBIAN_LOOP" ]] && { kpartx -d "$ARMBIAN_LOOP" 2>/dev/null; losetup -d "$ARMBIAN_LOOP" 2>/dev/null; }
+}
+trap cleanup EXIT
+
+# --- Mount Armbian to extract board-specific bits ---
+echo "=== Mounting Armbian ($(date)) ==="
+ARMBIAN_LOOP=$(losetup --find --show "$ARMBIAN_IMAGE")
+kpartx -avs "$ARMBIAN_LOOP"
+ARMBIAN_LOOP_NAME=$(basename "$ARMBIAN_LOOP")
+
+PART_COUNT=$(ls /dev/mapper/${ARMBIAN_LOOP_NAME}p* 2>/dev/null | wc -l)
+echo "Armbian has $PART_COUNT partition(s)"
+
+mkdir -p "$WORK_DIR"/{armbian-boot,armbian-root}
+
+if [[ "$PART_COUNT" -ge 2 ]]; then
+    SEPARATE_BOOT=true
+    mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p1" "$WORK_DIR/armbian-boot"
+    mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p2" "$WORK_DIR/armbian-root"
+    BOOT_SIZE=$(df -BM --output=used "$WORK_DIR/armbian-boot" | tail -1 | tr -d 'M ')
+else
+    SEPARATE_BOOT=false
+    mount "/dev/mapper/${ARMBIAN_LOOP_NAME}p1" "$WORK_DIR/armbian-root"
+    BOOT_SIZE=1
+fi
+
+# --- Calculate partition sizes ---
+# rootfs size: estimate from tar (compressed ~500M, uncompressed ~1.5G, add headroom)
+ROOT_PART=2048
+BOOT_PART=$((BOOT_SIZE + 16))
+DATA_PART=1024
+TOTAL=$((BOOT_PART + ROOT_PART * 2 + DATA_PART + 16))
+
+echo "Partition sizes: boot=${BOOT_PART}M rootfs=${ROOT_PART}M (x2) data=${DATA_PART}M total=${TOTAL}M"
+
+# --- Create output image ---
+echo "=== Creating image ($(date)) ==="
+truncate -s ${TOTAL}M "$OUTPUT_IMAGE"
+
+sgdisk -Z "$OUTPUT_IMAGE"
+sgdisk -n 1:0:+${BOOT_PART}M  -t 1:0700 -c 1:boot      "$OUTPUT_IMAGE"
+sgdisk -n 2:0:+${ROOT_PART}M  -t 2:8300 -c 2:rootfs-a   "$OUTPUT_IMAGE"
+sgdisk -n 3:0:+${ROOT_PART}M  -t 3:8300 -c 3:rootfs-b   "$OUTPUT_IMAGE"
+sgdisk -n 4:0:0               -t 4:8300 -c 4:data        "$OUTPUT_IMAGE"
+
+# Copy U-Boot from Armbian (raw sectors 1-8191)
+dd if="$ARMBIAN_IMAGE" of="$OUTPUT_IMAGE" bs=512 skip=1 seek=1 count=8191 conv=notrunc
+
+# --- Setup output partitions ---
+echo "=== Setting up partitions ($(date)) ==="
+OUT_LOOP=$(losetup --find --show "$OUTPUT_IMAGE")
+kpartx -avs "$OUT_LOOP"
+OUT_LOOP_NAME=$(basename "$OUT_LOOP")
+
+mkfs.vfat -F 32 "/dev/mapper/${OUT_LOOP_NAME}p1"
+mkfs.ext4 -L rootfs-a "/dev/mapper/${OUT_LOOP_NAME}p2"
+mkfs.ext4 -L rootfs-b "/dev/mapper/${OUT_LOOP_NAME}p3"
+mkfs.ext4 -L data "/dev/mapper/${OUT_LOOP_NAME}p4"
+
+# --- Boot partition ---
+echo "=== Writing boot partition ($(date)) ==="
+mkdir -p "$WORK_DIR/out-boot"
+mount "/dev/mapper/${OUT_LOOP_NAME}p1" "$WORK_DIR/out-boot"
+if [[ "$SEPARATE_BOOT" == "true" ]]; then
+    cp -rL --no-preserve=ownership "$WORK_DIR/armbian-boot"/* "$WORK_DIR/out-boot/"
+fi
+mkimage -C none -A arm64 -T script -d "$ROOT/rauc/uboot-boot.cmd" "$WORK_DIR/out-boot/boot.scr"
+umount "$WORK_DIR/out-boot"
+
+# --- Rootfs partition A ---
+echo "=== Extracting rootfs to slot A ($(date)) ==="
+mkdir -p "$WORK_DIR/out-rootfs"
+mount "/dev/mapper/${OUT_LOOP_NAME}p2" "$WORK_DIR/out-rootfs"
+
+tar xzf "$ROOTFS_TAR" -C "$WORK_DIR/out-rootfs"
+
+# Copy kernel + DTBs from Armbian into rootfs /boot/
+echo "=== Copying kernel from Armbian ($(date)) ==="
+if [[ "$SEPARATE_BOOT" == "false" ]]; then
+    # Single-partition: kernel is in Armbian rootfs /boot/
+    cp -a "$WORK_DIR/armbian-root/boot"/* "$WORK_DIR/out-rootfs/boot/"
+else
+    # Dual-partition: kernel files may be on boot partition or rootfs /boot/
+    if ls "$WORK_DIR/armbian-root/boot/vmlinuz"* 2>/dev/null; then
+        cp -a "$WORK_DIR/armbian-root/boot"/* "$WORK_DIR/out-rootfs/boot/"
+    fi
+fi
+# Copy kernel modules
+if [ -d "$WORK_DIR/armbian-root/lib/modules" ]; then
+    cp -a "$WORK_DIR/armbian-root/lib/modules"/* "$WORK_DIR/out-rootfs/lib/modules/" 2>/dev/null || true
+fi
+
+# Done with Armbian source
+if [[ "$SEPARATE_BOOT" == "true" ]]; then
+    umount "$WORK_DIR/armbian-boot"
+fi
+umount "$WORK_DIR/armbian-root"
+kpartx -d "$ARMBIAN_LOOP"
+losetup -d "$ARMBIAN_LOOP"
+ARMBIAN_LOOP=""
+
+# --- Enable v2 services (unmask) ---
+echo "=== Enabling v2 services ($(date)) ==="
+rm -f "$WORK_DIR/out-rootfs/etc/systemd/system/syncloud-data-init.service"
+rm -f "$WORK_DIR/out-rootfs/etc/systemd/system/syncloud-update.service"
+rm -f "$WORK_DIR/out-rootfs/etc/systemd/system/syncloud-update.timer"
+rm -f "$WORK_DIR/out-rootfs/etc/systemd/system/syncloud-boot-ok.service"
+
+# Enable services via symlinks (like systemctl enable)
+mkdir -p "$WORK_DIR/out-rootfs/etc/systemd/system/local-fs.target.wants"
+mkdir -p "$WORK_DIR/out-rootfs/etc/systemd/system/timers.target.wants"
+ln -sf /usr/lib/systemd/system/syncloud-data-init.service \
+    "$WORK_DIR/out-rootfs/etc/systemd/system/local-fs.target.wants/syncloud-data-init.service"
+ln -sf /usr/lib/systemd/system/syncloud-update.timer \
+    "$WORK_DIR/out-rootfs/etc/systemd/system/timers.target.wants/syncloud-update.timer"
+
+# Write board-specific RAUC config
+echo "=== Writing RAUC config ($(date)) ==="
+mkdir -p "$WORK_DIR/out-rootfs/etc/rauc"
+BOOTLOADER_TYPE=${BOOTLOADER:-uboot}
+sed "s|@RAUC_COMPATIBLE@|${RAUC_COMPATIBLE}|;s|@BOOTLOADER@|${BOOTLOADER_TYPE}|" \
+    "$ROOT/rauc/system.conf" > "$WORK_DIR/out-rootfs/etc/rauc/system.conf"
+mkdir -p "$WORK_DIR/out-rootfs/usr/lib/rauc"
+cp "$ROOT/rauc/post-install.sh" "$WORK_DIR/out-rootfs/usr/lib/rauc/"
+chmod +x "$WORK_DIR/out-rootfs/usr/lib/rauc/post-install.sh"
+
+# Add data partition to fstab
+echo "=== Configuring fstab ($(date)) ==="
+mkdir -p "$WORK_DIR/out-rootfs/mnt/data"
+grep -q 'by-partlabel/data' "$WORK_DIR/out-rootfs/etc/fstab" || \
+    echo '/dev/disk/by-partlabel/data  /mnt/data  ext4  defaults,nofail  0  2' >> "$WORK_DIR/out-rootfs/etc/fstab"
+echo "fstab:"
+cat "$WORK_DIR/out-rootfs/etc/fstab"
+
+umount "$WORK_DIR/out-rootfs"
+
+# --- Clone A to B ---
+echo "=== Cloning rootfs-a to rootfs-b ($(date)) ==="
+dd if="/dev/mapper/${OUT_LOOP_NAME}p2" of="/dev/mapper/${OUT_LOOP_NAME}p3" bs=4M status=progress
+e2label "/dev/mapper/${OUT_LOOP_NAME}p3" rootfs-b
+
+# --- Cleanup loop devices ---
+echo "=== Cleaning up loop devices ($(date)) ==="
+kpartx -d "$OUT_LOOP"
+losetup -d "$OUT_LOOP"
+OUT_LOOP=""
+
+# --- Compress ---
+echo "=== Compressing with xz ($(date)) ==="
+xz -T0 "$OUTPUT_IMAGE"
+
+echo "=== Done: ${OUTPUT_IMAGE}.xz ($(date)) ==="

@@ -35,6 +35,13 @@ for line in sys.stdin:
 http://ci.syncloud.org:8080/syncloud/image-v2
 
 CI is Drone CI (JS SPA). Check builds via API:
+
+## CI Runners
+
+Runner IPs are in `.runner` file (git-ignored). Source it to get `ARM64_RUNNER` variable.
+- arm64 runner runs all arm64 board builds (odroid-n2, odroid-hc4, raspberrypi-64)
+- Check uptime: `ssh root@$ARM64_RUNNER uptime`
+- Check reboots: `ssh root@$ARM64_RUNNER last reboot | head -5`
 ```
 curl -s "http://ci.syncloud.org:8080/api/repos/syncloud/image-v2/builds?limit=5"
 ```
