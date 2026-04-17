@@ -2,7 +2,7 @@ local dind = "20.10.21-dind";
 
 local build(board, arch) = {
     local board_dir = "boards/" + board,
-    local tool = if arch == "amd64" then "build-amd64.sh" else "build-arm64.sh",
+    local tool = if arch == "amd64" then "tools/build-amd64.sh" else "tools/build-arm64.sh",
     kind: "pipeline",
     name: board,
 
