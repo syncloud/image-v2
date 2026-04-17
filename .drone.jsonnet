@@ -66,22 +66,10 @@ local build(board, arch) = {
             event: ["tag"]
         }
     },
-    {
-        name: "artifact",
-        image: "appleboy/drone-scp:1.6.4",
-        settings: {
-            host: {
-                from_secret: "artifact_host"
-            },
-            username: "artifact",
-            key: {
-                from_secret: "artifact_key"
-            },
-            command_timeout: "2m",
-            target: "/home/artifact/repo/image-v2",
-            source: "output/*"
-        }
-    },
+    //{
+    //    name: "artifact",
+    //    ...
+    //},
     {
         name: "cleanup",
         image: "debian:bookworm-slim",
