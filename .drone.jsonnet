@@ -1,3 +1,5 @@
+local rootfs_version = "26.04.3";
+
 local build(board, arch) = {
     local board_dir = "boards/" + board,
     local tool = if arch == "amd64" then "tools/build-amd64.sh" else "tools/build-arm64.sh",
@@ -12,6 +14,9 @@ local build(board, arch) = {
     {
         name: "build",
         image: "debian:bookworm",
+        environment: {
+            ROOTFS_VERSION: rootfs_version,
+        },
         commands: [
             "./" + tool + " " + board_dir,
         ],

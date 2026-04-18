@@ -29,8 +29,9 @@ IMAGE="$OUTPUT_DIR/syncloud-${BOARD_NAME}.img"
 
 mkdir -p "$OUTPUT_DIR" "$ROOTFS_DIR"
 
-# Download pre-built rootfs (from rootfs CI)
-ROOTFS_URL="${ROOTFS_URL:-http://ci.syncloud.org:8081/files/rootfs/432-bookworm-amd64/rootfs-bookworm-amd64.tar.gz}"
+# Download pre-built rootfs from syncloud/rootfs GitHub release
+: "${ROOTFS_VERSION:?ROOTFS_VERSION must be set (syncloud/rootfs release tag)}"
+ROOTFS_URL="https://github.com/syncloud/rootfs/releases/download/${ROOTFS_VERSION}/rootfs-bookworm-amd64.tar.gz"
 ROOTFS_TAR="$WORK_DIR/rootfs.tar.gz"
 if [[ ! -f "$ROOTFS_TAR" ]]; then
     echo "=== Downloading rootfs ($(date)) ==="
