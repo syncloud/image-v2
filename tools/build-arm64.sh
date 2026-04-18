@@ -7,6 +7,9 @@
 #
 # Usage: ./tools/build-arm64.sh <board-dir>
 
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wget xz-utils gdisk u-boot-tools kpartx e2fsprogs dosfstools
+
 DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT=$(dirname "$DIR")
 

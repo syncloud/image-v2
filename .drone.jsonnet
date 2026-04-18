@@ -13,18 +13,30 @@ local build(board, arch) = {
         name: "build",
         image: "debian:bookworm",
         commands: [
-            "DEBIAN_FRONTEND=noninteractive apt-get update",
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y wget xz-utils gdisk u-boot-tools kpartx e2fsprogs dosfstools",
             "./" + tool + " " + board_dir,
         ],
         privileged: true
     },
+    ] + (if arch == "amd64" then [
+    {
+        name: "test-boot",
+        image: "alpine",
+        commands: [
+            "./tools/test-boot.sh output/syncloud-" + board + ".img.xz",
+        ],
+    },
+    {
+        name: "vdi",
+        image: "alpine",
+        commands: [
+            "./tools/convert-vdi.sh output/syncloud-" + board + ".img.xz",
+        ],
+    },
+    ] else []) + [
     {
         name: "bundle",
         image: "debian:bookworm",
         commands: [
-            "DEBIAN_FRONTEND=noninteractive apt-get update",
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y squashfs-tools rauc kpartx",
             "./tools/build-bundle.sh " + board_dir + " ${DRONE_TAG:-dev}",
         ],
         privileged: true,

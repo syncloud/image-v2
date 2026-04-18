@@ -7,6 +7,9 @@
 #
 # Usage: ./tools/build-amd64.sh boards/amd64-uefi
 
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wget xz-utils gdisk kpartx e2fsprogs dosfstools
+
 DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT=$(dirname "$DIR")
 
