@@ -24,6 +24,7 @@ local build(board, arch) = {
         commands: [
             "./tools/test-boot.sh output/syncloud-" + board + ".img.xz",
         ],
+        privileged: true
     },
     {
         name: "vdi",

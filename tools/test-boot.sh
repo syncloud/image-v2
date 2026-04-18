@@ -47,9 +47,16 @@ if [ -z "$OVMF" ]; then
 fi
 echo "OVMF: $OVMF"
 
+# Require KVM
+if [ ! -e /dev/kvm ]; then
+    echo "ERROR: /dev/kvm not available, cannot run boot test"
+    exit 1
+fi
+
 # Boot image
 echo "=== Booting image in QEMU ($(date)) ==="
 qemu-system-x86_64 \
+    -enable-kvm \
     -bios "$OVMF" \
     -drive file="$IMAGE",format=raw,if=virtio \
     -m 1024 \
