@@ -35,7 +35,7 @@ ls -lh "$IMAGE"
 
 # Find OVMF firmware
 OVMF=""
-for f in /usr/share/ovmf/OVMF.fd /usr/share/OVMF/OVMF_CODE.fd /usr/share/qemu/OVMF.fd; do
+for f in /usr/share/OVMF/OVMF.fd /usr/share/ovmf/OVMF.fd /usr/share/qemu/OVMF.fd; do
     if [ -f "$f" ]; then
         OVMF="$f"
         break
