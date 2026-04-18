@@ -97,6 +97,17 @@ mkdir -p "$ROOTFS_DIR/boot/efi"
 mount "$ESP" "$ROOTFS_DIR/boot/efi"
 chroot "$ROOTFS_DIR" grub-install --target=x86_64-efi --efi-directory=/boot/efi --no-nvram --removable
 cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/grub/grub.cfg"
+# Also put grub.cfg on ESP for removable boot
+mkdir -p "$ROOTFS_DIR/boot/efi/boot/grub"
+cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/efi/boot/grub/grub.cfg"
+# Create grubenv so load_env doesn't fail
+chroot "$ROOTFS_DIR" grub-editenv /boot/grub/grubenv create
+cp "$ROOTFS_DIR/boot/grub/grubenv" "$ROOTFS_DIR/boot/efi/boot/grub/grubenv"
+# List ESP for debugging
+echo "=== ESP contents ==="
+find "$ROOTFS_DIR/boot/efi" -type f
+echo "=== rootfs /boot ==="
+ls -la "$ROOTFS_DIR/boot/"
 umount "$ROOTFS_DIR/boot/efi"
 
 umount "$ROOTFS_DIR/sys"
