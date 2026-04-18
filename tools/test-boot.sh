@@ -54,6 +54,7 @@ if [ ! -e /dev/kvm ]; then
 fi
 
 # Boot image
+QEMU_LOG="$WORK_DIR/qemu-console.log"
 echo "=== Booting image in QEMU ($(date)) ==="
 qemu-system-x86_64 \
     -enable-kvm \
@@ -62,10 +63,11 @@ qemu-system-x86_64 \
     -m 1024 \
     -smp 2 \
     -nographic \
+    -serial mon:stdio \
     -net nic,model=virtio \
     -net user,hostfwd=tcp::${SSH_PORT}-:22 \
     -no-reboot \
-    &
+    > "$QEMU_LOG" 2>&1 &
 QEMU_PID=$!
 
 # Wait for SSH
@@ -80,11 +82,14 @@ while [ $i -lt 60 ]; do
         echo "SSH ready after $i attempts"
         break
     fi
-    echo "waiting for SSH... ($i/60)"
+    echo "waiting for SSH... ($i/60) last console output:"
+    tail -10 "$QEMU_LOG" 2>/dev/null || true
     sleep 5
 done
 if [ "$SSH_READY" != "true" ]; then
     echo "ERROR: SSH not available after 5 minutes"
+    echo "=== Full QEMU console log ==="
+    cat "$QEMU_LOG" 2>/dev/null || true
     exit 1
 fi
 
