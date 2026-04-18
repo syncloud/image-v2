@@ -6,7 +6,7 @@
 #
 # Usage: ./tools/test-boot.sh <image.img.xz>
 
-apk add --no-cache qemu-system-x86_64 ovmf sshpass xz
+apk add --no-cache qemu-system-x86_64 ovmf sshpass openssh-client xz
 
 IMAGE_XZ=$1
 if [ -z "$IMAGE_XZ" ] || [ ! -f "$IMAGE_XZ" ]; then
@@ -77,7 +77,7 @@ SSH_READY=false
 i=0
 while [ $i -lt 60 ]; do
     i=$((i + 1))
-    if $SSH echo "ssh-ok" 2>/dev/null; then
+    if $SSH echo "ssh-ok"; then
         SSH_READY=true
         echo "SSH ready after $i attempts"
         break
