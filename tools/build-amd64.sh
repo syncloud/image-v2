@@ -95,10 +95,7 @@ chroot "$ROOTFS_DIR" bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y 
 echo "=== Installing GRUB to ESP ($(date)) ==="
 mkdir -p "$ROOTFS_DIR/boot/efi"
 mount "$ESP" "$ROOTFS_DIR/boot/efi"
-chroot "$ROOTFS_DIR" grub-install --target=x86_64-efi --efi-directory=/boot/efi --no-nvram
-# UEFI fallback path - boots without NVRAM entries (required for distributable images)
-mkdir -p "$ROOTFS_DIR/boot/efi/EFI/BOOT"
-cp "$ROOTFS_DIR/boot/efi/EFI/debian/grubx64.efi" "$ROOTFS_DIR/boot/efi/EFI/BOOT/BOOTX64.EFI"
+chroot "$ROOTFS_DIR" grub-install --target=x86_64-efi --efi-directory=/boot/efi --no-nvram --removable
 cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/grub/grub.cfg"
 umount "$ROOTFS_DIR/boot/efi"
 
