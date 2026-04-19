@@ -165,14 +165,31 @@ kill_qemu() {
 # --- Helper: trigger update, wait for reboot, reboot back up ---
 apply_update_and_wait() {
     expected_version=$1
-    # Point guest at our mock server
-    $SSH 'echo UPDATE_URL=http://10.0.2.2:8000 > /etc/default/syncloud-update'
+    # Point guest at our mock server. Quote the remote command so the
+    # '>' redirect runs on the guest, not the host.
+    $SSH "sh -c 'echo UPDATE_URL=http://10.0.2.2:8000 > /etc/default/syncloud-update'"
+    # Sanity check: verify the override actually landed on the guest.
+    got_url=$($SSH 'cat /etc/default/syncloud-update')
+    [ "$got_url" = "UPDATE_URL=http://10.0.2.2:8000" ] || {
+        echo "ERROR: UPDATE_URL override didn't land on guest. got: $got_url"
+        return 1
+    }
     # Trigger synchronously — script does `systemctl reboot` at the end,
     # which will tear down SSH. That's fine.
     $SSH 'systemctl start syncloud-update.service' || true
-    # Wait for the VM to actually reboot: SSH will drop, QEMU exits
-    # because of -no-reboot. We restart it.
+    # Wait for the VM to actually reboot: QEMU exits on reboot because
+    # of -no-reboot. Time-box it so a silent no-op update doesn't hang.
     echo "Waiting for QEMU to exit (reboot)..."
+    for _ in $(seq 1 120); do
+        kill -0 "$QEMU_PID" 2>/dev/null || break
+        sleep 1
+    done
+    if kill -0 "$QEMU_PID" 2>/dev/null; then
+        echo "ERROR: QEMU still alive 2min after update trigger (reboot never happened)"
+        echo "=== journalctl on guest ==="
+        $SSH 'journalctl -u syncloud-update.service --no-pager -n 50' || true
+        return 1
+    fi
     wait "$QEMU_PID" 2>/dev/null || true
     QEMU_PID=""
     echo "Rebooting VM..."

@@ -26,8 +26,9 @@ OUTPUT_DIR="$ROOT/output"
 WORK_DIR="$ROOT/build/$BOARD_NAME"
 mkdir -p "$OUTPUT_DIR" "$WORK_DIR"
 
-# Download pre-built rootfs (from rootfs CI)
-ROOTFS_URL="${ROOTFS_URL:-http://ci.syncloud.org:8081/files/rootfs/432-bookworm-arm64/rootfs-bookworm-arm64.tar.gz}"
+# Download pre-built rootfs from syncloud/rootfs GitHub release
+: "${ROOTFS_VERSION:?ROOTFS_VERSION must be set (syncloud/rootfs release tag)}"
+ROOTFS_URL="https://github.com/syncloud/rootfs/releases/download/${ROOTFS_VERSION}/rootfs-bookworm-arm64.tar.gz"
 ROOTFS_TAR="$WORK_DIR/rootfs.tar.gz"
 if [[ ! -f "$ROOTFS_TAR" ]]; then
     echo "=== Downloading rootfs ($(date)) ==="
