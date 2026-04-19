@@ -196,10 +196,24 @@ rm -f "$WORK_DIR/out-rootfs/etc/systemd/system/syncloud-boot-ok.service"
 # Enable services via symlinks (like systemctl enable)
 mkdir -p "$WORK_DIR/out-rootfs/etc/systemd/system/local-fs.target.wants"
 mkdir -p "$WORK_DIR/out-rootfs/etc/systemd/system/timers.target.wants"
+mkdir -p "$WORK_DIR/out-rootfs/etc/systemd/system/multi-user.target.wants"
 ln -sf /usr/lib/systemd/system/syncloud-data-init.service \
     "$WORK_DIR/out-rootfs/etc/systemd/system/local-fs.target.wants/syncloud-data-init.service"
 ln -sf /usr/lib/systemd/system/syncloud-update.timer \
     "$WORK_DIR/out-rootfs/etc/systemd/system/timers.target.wants/syncloud-update.timer"
+# rauc.service runs the RAUC daemon (D-Bus server). Required for 'rauc install'
+# and 'rauc status' — without it calls fail with "name not provided by .service files".
+ln -sf /lib/systemd/system/rauc.service \
+    "$WORK_DIR/out-rootfs/etc/systemd/system/multi-user.target.wants/rauc.service"
+# syncloud-boot-ok marks the current slot as good after a successful boot — without
+# this, RAUC would fall back to the previous slot after the boot-attempts counter expires.
+ln -sf /usr/lib/systemd/system/syncloud-boot-ok.service \
+    "$WORK_DIR/out-rootfs/etc/systemd/system/multi-user.target.wants/syncloud-boot-ok.service"
+# Assert the symlink targets exist in the rootfs (catch Debian renames fast).
+[ -f "$WORK_DIR/out-rootfs/lib/systemd/system/rauc.service" ] || \
+    { echo "ERROR: rauc.service not found in rootfs"; exit 1; }
+[ -f "$WORK_DIR/out-rootfs/usr/lib/systemd/system/syncloud-boot-ok.service" ] || \
+    { echo "ERROR: syncloud-boot-ok.service not found in rootfs"; exit 1; }
 
 # Write board-specific RAUC config
 echo "=== Writing RAUC config ($(date)) ==="

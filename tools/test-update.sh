@@ -187,7 +187,9 @@ apply_update_and_wait() {
 }
 
 read_slot() {
-    $SSH "rauc status --output-format=shell | grep RAUC_SYSTEM_BOOTED_BOOTNAME | cut -d= -f2 | tr -d '\"'"
+    # Kernel cmdline has rauc.slot=A or rauc.slot=B (set by grub.cfg / boot.scr)
+    # — no rauc daemon / D-Bus needed.
+    $SSH "grep -oE 'rauc\\.slot=[AB]' /proc/cmdline | cut -d= -f2"
 }
 
 # --- Test run ---
