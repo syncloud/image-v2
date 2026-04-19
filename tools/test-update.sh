@@ -106,13 +106,16 @@ make_bundle 3
 ls -lh "$WORK_DIR"/bundle-v*.raucb
 
 # --- Start mock update server on :8000 (host-side) ---
+# update-agent fetches from $UPDATE_URL/$COMPATIBLE/latest.json — we serve
+# under a /syncloud-amd64-uefi/ path to match.
 WWW="$WORK_DIR/www"
-mkdir -p "$WWW"
+COMPATIBLE_DIR="$WWW/syncloud-amd64-uefi"
+mkdir -p "$COMPATIBLE_DIR"
 publish_manifest() {
     v=$1
-    cp "$WORK_DIR/bundle-v$v.raucb" "$WWW/bundle-v$v.raucb"
-    cat > "$WWW/latest.json" <<EOF
-{"version": "$v", "url": "http://10.0.2.2:8000/bundle-v$v.raucb"}
+    cp "$WORK_DIR/bundle-v$v.raucb" "$COMPATIBLE_DIR/bundle-v$v.raucb"
+    cat > "$COMPATIBLE_DIR/latest.json" <<EOF
+{"version": "$v", "url": "http://10.0.2.2:8000/syncloud-amd64-uefi/bundle-v$v.raucb"}
 EOF
 }
 

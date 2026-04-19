@@ -101,8 +101,13 @@ cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/grub/grub.cfg"
 # Also put grub.cfg on ESP for removable boot
 mkdir -p "$ROOTFS_DIR/boot/efi/boot/grub"
 cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/efi/boot/grub/grub.cfg"
-# Create grubenv so load_env doesn't fail
+# Create grubenv with RAUC-managed state. RAUC reads/writes ORDER, A_OK,
+# B_OK, A_TRY, B_TRY to pick the boot slot. Without these set at image
+# build time, rauc fails with:
+#   "Failed getting primary slot: grub backend: Variable ORDER not set"
 chroot "$ROOTFS_DIR" grub-editenv /boot/grub/grubenv create
+chroot "$ROOTFS_DIR" grub-editenv /boot/grub/grubenv set \
+    ORDER="A B" A_OK=1 B_OK=0 A_TRY=0 B_TRY=0
 cp "$ROOTFS_DIR/boot/grub/grubenv" "$ROOTFS_DIR/boot/efi/boot/grub/grubenv"
 # List ESP for debugging
 echo "=== ESP contents ==="
