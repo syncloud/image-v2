@@ -131,15 +131,18 @@ ln -sf /usr/lib/systemd/system/syncloud-update.timer \
     "$ROOTFS_DIR/etc/systemd/system/timers.target.wants/syncloud-update.timer"
 # rauc.service runs the RAUC daemon (D-Bus server). Required for 'rauc install'
 # and 'rauc status' — without it calls fail with "name not provided by .service files".
-ln -sf /lib/systemd/system/rauc.service \
-    "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/rauc.service"
 # syncloud-boot-ok marks the current slot as good after a successful boot — without
 # this, RAUC would fall back to the previous slot after the boot-attempts counter expires.
+ln -sf /lib/systemd/system/rauc.service \
+    "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/rauc.service"
 ln -sf /usr/lib/systemd/system/syncloud-boot-ok.service \
     "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/syncloud-boot-ok.service"
-# Assert the symlink targets exist in the rootfs (catch Debian renames fast).
+# Assert the target unit files exist (catch Debian renames / missing packages fast).
+# Try both /lib and /usr/lib — on usrmerge systems /lib -> /usr/lib inside the rootfs,
+# but that symlink points at an absolute host path when followed from outside chroot.
 [ -f "$ROOTFS_DIR/lib/systemd/system/rauc.service" ] || \
-    { echo "ERROR: rauc.service not found in rootfs"; exit 1; }
+    [ -f "$ROOTFS_DIR/usr/lib/systemd/system/rauc.service" ] || \
+    { echo "ERROR: rauc.service not found in rootfs (install rauc-service pkg)"; exit 1; }
 [ -f "$ROOTFS_DIR/usr/lib/systemd/system/syncloud-boot-ok.service" ] || \
     { echo "ERROR: syncloud-boot-ok.service not found in rootfs"; exit 1; }
 

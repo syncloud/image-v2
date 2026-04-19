@@ -1,4 +1,4 @@
-local rootfs_version = "26.04.3";
+local rootfs_version = "26.04.4";
 
 local build(board, arch) = {
     local board_dir = "boards/" + board,
