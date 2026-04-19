@@ -92,7 +92,6 @@ version=$version
 
 [image.rootfs]
 filename=rootfs.img
-type=raw
 EOF
     rauc bundle \
         --cert="$KEY_DIR/cert.pem" \

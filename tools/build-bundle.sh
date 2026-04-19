@@ -47,7 +47,6 @@ version=${VERSION}
 
 [image.rootfs]
 filename=rootfs.img
-type=raw
 EOF
 
 # Build the bundle (requires signing key)
