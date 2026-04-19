@@ -1,0 +1,9 @@
+# Raspberry Pi firmware config for v2 A/B boot
+#
+# Pi firmware loads u-boot.bin as "kernel", which then runs boot.scr
+# to select the active rootfs slot and load the real kernel from it.
+# The kernel/initrd/dtb live in /boot on the slot rootfs, not on vfat.
+
+arm_64bit=1
+enable_uart=1
+kernel=u-boot.bin

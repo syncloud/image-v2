@@ -120,6 +120,40 @@ if [[ "$SEPARATE_BOOT" == "true" ]]; then
     cp -rL --no-preserve=ownership "$WORK_DIR/armbian-boot"/* "$WORK_DIR/out-boot/"
 fi
 mkimage -C none -A arm64 -T script -d "$ROOT/rauc/uboot-boot.cmd" "$WORK_DIR/out-boot/boot.scr"
+
+# Board-specific: RPi pivots Pi firmware's direct-kernel boot to U-Boot,
+# so boot.scr (our A/B selector) actually runs. Without this, Pi firmware
+# loads vmlinuz straight from vfat and our A/B design is bypassed.
+if [[ "${NEEDS_UBOOT_PIVOT:-}" == "yes" ]]; then
+    echo "=== Pivoting Pi firmware to U-Boot ($(date)) ==="
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq u-boot-rpi
+    : "${UBOOT_RPI_BIN:?UBOOT_RPI_BIN must be set in board.conf when NEEDS_UBOOT_PIVOT=yes}"
+    [ -f "$UBOOT_RPI_BIN" ] || { echo "ERROR: missing $UBOOT_RPI_BIN (from u-boot-rpi package)"; exit 1; }
+
+    # Assert Armbian shipped the Pi firmware files we rely on — fail if
+    # the upstream layout changed and we're about to build an unbootable image.
+    for f in bootcode.bin start4.elf fixup4.dat config.txt bcm2711-rpi-4-b.dtb; do
+        [ -f "$WORK_DIR/out-boot/$f" ] || { echo "ERROR: expected Armbian file missing on vfat: $f"; exit 1; }
+    done
+
+    # Drop U-Boot and overwrite config.txt so Pi firmware chainloads U-Boot
+    cp "$UBOOT_RPI_BIN" "$WORK_DIR/out-boot/u-boot.bin"
+    cp "$ROOT/rauc/rpi-config.txt" "$WORK_DIR/out-boot/config.txt"
+
+    # Remove Armbian's vfat-resident kernel/initrd/cmdline — kernel now
+    # lives on the A/B rootfs and boot args come from boot.scr.
+    rm -f "$WORK_DIR/out-boot/vmlinuz" \
+          "$WORK_DIR/out-boot/initrd.img" \
+          "$WORK_DIR/out-boot/cmdline.txt"
+
+    # Final assertions: vfat has U-Boot, no direct-kernel leftovers
+    [ -f "$WORK_DIR/out-boot/u-boot.bin" ]
+    [ -f "$WORK_DIR/out-boot/boot.scr" ]
+    grep -q '^kernel=u-boot.bin' "$WORK_DIR/out-boot/config.txt"
+    [ ! -e "$WORK_DIR/out-boot/vmlinuz" ]
+    [ ! -e "$WORK_DIR/out-boot/initrd.img" ]
+fi
+
 umount "$WORK_DIR/out-boot"
 
 # --- Rootfs partition A ---
