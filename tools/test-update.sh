@@ -106,16 +106,15 @@ make_bundle 3
 ls -lh "$WORK_DIR"/bundle-v*.raucb
 
 # --- Start mock update server on :8000 (host-side) ---
-# update-agent fetches from $UPDATE_URL/$COMPATIBLE/latest.json — we serve
-# under a /syncloud-amd64-uefi/ path to match.
+# update-agent fetches $UPDATE_URL/os/<compatible>/latest.json.
 WWW="$WORK_DIR/www"
-COMPATIBLE_DIR="$WWW/syncloud-amd64-uefi"
+COMPATIBLE_DIR="$WWW/os/syncloud-amd64-uefi"
 mkdir -p "$COMPATIBLE_DIR"
 publish_manifest() {
     v=$1
     cp "$WORK_DIR/bundle-v$v.raucb" "$COMPATIBLE_DIR/bundle-v$v.raucb"
     cat > "$COMPATIBLE_DIR/latest.json" <<EOF
-{"version": "$v", "url": "http://10.0.2.2:8000/syncloud-amd64-uefi/bundle-v$v.raucb"}
+{"version": "$v", "url": "http://10.0.2.2:8000/os/syncloud-amd64-uefi/bundle-v$v.raucb"}
 EOF
 }
 
@@ -181,7 +180,7 @@ apply_update_and_wait() {
     # If SLIRP gateway isn't wired, the agent would silently exit 0 with
     # 'No update available' and the whole test would stall.
     echo "Probing guest connectivity to mock update server..."
-    if ! $SSH "curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' http://10.0.2.2:8000/syncloud-amd64-uefi/latest.json"; then
+    if ! $SSH "curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' http://10.0.2.2:8000/os/syncloud-amd64-uefi/latest.json"; then
         echo "ERROR: guest cannot reach mock server at 10.0.2.2:8000"
         echo "=== python http.server log ==="
         cat "$WORK_DIR/http.log" || true

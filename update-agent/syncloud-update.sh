@@ -14,8 +14,11 @@ SLOT_STATUS=$(rauc status --output-format=shell)
 echo "Device: $COMPATIBLE"
 echo "Current version: $CURRENT_VERSION"
 
-# Check for update
-MANIFEST=$(curl -sf "$UPDATE_URL/$COMPATIBLE/latest.json") || {
+# Check for update. Server layout:
+#   $UPDATE_URL/os/<compatible>/latest.json
+#   $UPDATE_URL/os/<compatible>/<bundle>.raucb
+# The /os/ namespace reserves room for apps updates under /apps/ later.
+MANIFEST=$(curl -sf "$UPDATE_URL/os/$COMPATIBLE/latest.json") || {
     echo "No update available or server unreachable"
     exit 0
 }
