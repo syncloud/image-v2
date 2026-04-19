@@ -33,7 +33,7 @@ local build(board, arch) = {
     },
     {
         name: "test-update",
-        image: "alpine",
+        image: "debian:bookworm",
         commands: [
             "./tools/test-update.sh output/syncloud-" + board + ".img.xz",
         ],

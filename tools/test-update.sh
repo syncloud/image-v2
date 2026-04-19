@@ -16,8 +16,10 @@
 #
 # Usage: ./tools/test-update.sh <image.img.xz>
 
-apk add --no-cache qemu-system-x86_64 ovmf sshpass openssh-client xz \
-    python3 rauc squashfs-tools e2fsprogs openssl util-linux
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    qemu-system-x86 ovmf sshpass openssh-client xz-utils \
+    python3 rauc squashfs-tools e2fsprogs openssl kpartx
 
 IMAGE_XZ=$1
 if [ -z "$IMAGE_XZ" ] || [ ! -f "$IMAGE_XZ" ]; then
