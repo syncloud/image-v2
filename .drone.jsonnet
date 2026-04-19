@@ -32,6 +32,14 @@ local build(board, arch) = {
         privileged: true
     },
     {
+        name: "test-update",
+        image: "alpine",
+        commands: [
+            "./tools/test-update.sh output/syncloud-" + board + ".img.xz",
+        ],
+        privileged: true
+    },
+    {
         name: "vdi",
         image: "alpine",
         commands: [
