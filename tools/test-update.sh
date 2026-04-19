@@ -177,6 +177,18 @@ apply_update_and_wait() {
         echo "ERROR: UPDATE_URL override didn't land on guest. got: $got_url"
         return 1
     }
+    # Probe guest -> mock server reachability before triggering the update.
+    # If SLIRP gateway isn't wired, the agent would silently exit 0 with
+    # 'No update available' and the whole test would stall.
+    echo "Probing guest connectivity to mock update server..."
+    if ! $SSH "curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' http://10.0.2.2:8000/syncloud-amd64-uefi/latest.json"; then
+        echo "ERROR: guest cannot reach mock server at 10.0.2.2:8000"
+        echo "=== python http.server log ==="
+        cat "$WORK_DIR/http.log" || true
+        echo "=== host-side netstat ==="
+        ss -tlnp 2>/dev/null | grep :8000 || true
+        return 1
+    fi
     # Trigger synchronously — script does `systemctl reboot` at the end,
     # which will tear down SSH. That's fine.
     $SSH 'systemctl start syncloud-update.service' || true
@@ -190,7 +202,11 @@ apply_update_and_wait() {
     if kill -0 "$QEMU_PID" 2>/dev/null; then
         echo "ERROR: QEMU still alive 2min after update trigger (reboot never happened)"
         echo "=== journalctl on guest ==="
-        $SSH 'journalctl -u syncloud-update.service --no-pager -n 50' || true
+        $SSH 'journalctl -u syncloud-update.service --no-pager -n 80' || true
+        echo "=== rauc status on guest ==="
+        $SSH 'rauc status --detailed 2>&1 || true' || true
+        echo "=== python http.server log ==="
+        cat "$WORK_DIR/http.log" || true
         return 1
     fi
     wait "$QEMU_PID" 2>/dev/null || true
