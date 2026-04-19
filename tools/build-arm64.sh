@@ -129,21 +129,19 @@ mount "/dev/mapper/${OUT_LOOP_NAME}p2" "$WORK_DIR/out-rootfs"
 
 tar xzf "$ROOTFS_TAR" -C "$WORK_DIR/out-rootfs"
 
-# Copy kernel + DTBs from Armbian into rootfs /boot/
+# Copy kernel + DTBs from Armbian rootfs /boot into our rootfs /boot
+# (U-Boot loads /boot/vmlinuz from the slot partition, not from the vfat boot)
 echo "=== Copying kernel from Armbian ($(date)) ==="
-if [[ "$SEPARATE_BOOT" == "false" ]]; then
-    # Single-partition: kernel is in Armbian rootfs /boot/
-    cp -a "$WORK_DIR/armbian-root/boot"/* "$WORK_DIR/out-rootfs/boot/"
-else
-    # Dual-partition: kernel files may be on boot partition or rootfs /boot/
-    if ls "$WORK_DIR/armbian-root/boot/vmlinuz"* 2>/dev/null; then
-        cp -a "$WORK_DIR/armbian-root/boot"/* "$WORK_DIR/out-rootfs/boot/"
-    fi
-fi
+ls "$WORK_DIR/armbian-root/boot/vmlinuz"* >/dev/null
+cp -a "$WORK_DIR/armbian-root/boot"/* "$WORK_DIR/out-rootfs/boot/"
+
 # Copy kernel modules
-if [ -d "$WORK_DIR/armbian-root/lib/modules" ]; then
-    cp -a "$WORK_DIR/armbian-root/lib/modules"/* "$WORK_DIR/out-rootfs/lib/modules/" 2>/dev/null || true
-fi
+[ -d "$WORK_DIR/armbian-root/lib/modules" ]
+cp -a "$WORK_DIR/armbian-root/lib/modules"/* "$WORK_DIR/out-rootfs/lib/modules/"
+
+# Post-copy assertion: our rootfs must have a bootable kernel + initrd
+ls "$WORK_DIR/out-rootfs/boot/vmlinuz"* >/dev/null
+ls "$WORK_DIR/out-rootfs/boot/initrd.img"* >/dev/null
 
 # Done with Armbian source
 if [[ "$SEPARATE_BOOT" == "true" ]]; then
