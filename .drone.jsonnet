@@ -59,17 +59,28 @@ local build(board, arch) = {
             },
         },
         commands: [
-            "gh release create ${DRONE_TAG} --repo syncloud/image-v2 --title ${DRONE_TAG} --notes ${DRONE_TAG} 2>/dev/null || true",
-            "for i in 1 2 3; do echo \"attempt $i\"; timeout 600 gh release upload ${DRONE_TAG} --repo syncloud/image-v2 --clobber output/*.xz output/*.raucb && break || sleep 10; done",
+            "./tools/publish-github.sh",
         ],
         when: {
             event: ["tag"]
         }
     },
-    //{
-    //    name: "artifact",
-    //    ...
-    //},
+    {
+        name: "artifact",
+        image: "appleboy/drone-scp:1.6.4",
+        settings: {
+            host: {
+                from_secret: "artifact_host"
+            },
+            username: "artifact",
+            key: {
+                from_secret: "artifact_key"
+            },
+            command_timeout: "2m",
+            target: "/home/artifact/repo/image-v2",
+            source: "output/*"
+        }
+    },
     {
         name: "cleanup",
         image: "debian:bookworm-slim",
