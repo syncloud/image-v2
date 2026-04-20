@@ -164,14 +164,33 @@ kill_qemu() {
     QEMU_PID=""
 }
 
+
+# --- Helper: log a snapshot of the guest's RAUC + bootloader state ---
+# Always runs (success or failure) — useful for retrospective debugging.
+dump_state() {
+    label=$1
+    echo "================ guest state: $label ================"
+    echo "--- /proc/cmdline ---"
+    $SSH 'cat /proc/cmdline' || true
+    echo "--- grubenv (ESP) ---"
+    $SSH 'grub-editenv /boot/efi/boot/grub/grubenv list' || true
+    echo "--- rauc status ---"
+    $SSH 'rauc status --detailed' || true
+    echo "--- /etc/syncloud-test-version ---"
+    $SSH 'cat /etc/syncloud-test-version 2>/dev/null || echo "(not present)"' || true
+    echo "================ end state: $label ================"
+}
+
 # --- Helper: trigger update, wait for reboot, reboot back up ---
 apply_update_and_wait() {
     expected_version=$1
+    echo "--- apply_update_and_wait: expected version=$expected_version ---"
     # Point guest at our mock server. Quote the remote command so the
     # '>' redirect runs on the guest, not the host.
     $SSH "sh -c 'echo UPDATE_URL=http://10.0.2.2:8000 > /etc/default/syncloud-update'"
     # Sanity check: verify the override actually landed on the guest.
     got_url=$($SSH 'cat /etc/default/syncloud-update')
+    echo "guest /etc/default/syncloud-update: $got_url"
     [ "$got_url" = "UPDATE_URL=http://10.0.2.2:8000" ] || {
         echo "ERROR: UPDATE_URL override didn't land on guest. got: $got_url"
         return 1
@@ -180,8 +199,10 @@ apply_update_and_wait() {
     # If SLIRP gateway isn't wired, the agent would silently exit 0 with
     # 'No update available' and the whole test would stall.
     echo "Probing guest connectivity to mock update server..."
-    if ! $SSH "curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' http://10.0.2.2:8000/os/syncloud-amd64-uefi/latest.json"; then
-        echo "ERROR: guest cannot reach mock server at 10.0.2.2:8000"
+    probe_code=$($SSH "curl -sS --max-time 10 -o /dev/null -w '%{http_code}' http://10.0.2.2:8000/os/syncloud-amd64-uefi/latest.json" 2>&1) || true
+    echo "probe latest.json HTTP code: $probe_code"
+    if [ "$probe_code" != "200" ]; then
+        echo "ERROR: guest cannot reach mock server at 10.0.2.2:8000 (got '$probe_code')"
         echo "=== python http.server log ==="
         cat "$WORK_DIR/http.log" || true
         echo "=== host-side netstat ==="
@@ -190,6 +211,7 @@ apply_update_and_wait() {
     fi
     # Trigger synchronously — script does `systemctl reboot` at the end,
     # which will tear down SSH. That's fine.
+    echo "Triggering syncloud-update.service on guest..."
     $SSH 'systemctl start syncloud-update.service' || true
     # Wait for the VM to actually reboot: QEMU exits on reboot because
     # of -no-reboot. Time-box it so a silent no-op update doesn't hang.
@@ -202,20 +224,24 @@ apply_update_and_wait() {
         echo "ERROR: QEMU still alive 2min after update trigger (reboot never happened)"
         echo "=== journalctl on guest ==="
         $SSH 'journalctl -u syncloud-update.service --no-pager -n 80' || true
-        echo "=== rauc status on guest ==="
-        $SSH 'rauc status --detailed 2>&1 || true' || true
+        dump_state "after-failed-update-trigger"
         echo "=== python http.server log ==="
         cat "$WORK_DIR/http.log" || true
         return 1
     fi
     wait "$QEMU_PID" 2>/dev/null || true
     QEMU_PID=""
-    echo "Rebooting VM..."
+    echo "QEMU exited, rebooting VM..."
     boot_and_wait_ssh
+    # Always log the state after reboot — easy to see in CI logs whether
+    # the slot flipped and what the bootloader actually did.
+    dump_state "after-reboot-cycle-v$expected_version"
     # Verify sentinel
     got=$($SSH 'cat /etc/syncloud-test-version 2>/dev/null || echo MISSING')
     if [ "$got" != "version=$expected_version" ]; then
         echo "ERROR: expected sentinel version=$expected_version, got '$got'"
+        echo "=== python http.server log ==="
+        cat "$WORK_DIR/http.log" || true
         return 1
     fi
     echo "Sentinel OK: $got"
@@ -230,6 +256,7 @@ read_slot() {
 # --- Test run ---
 echo "=== Booting initial image (slot A) ($(date)) ==="
 boot_and_wait_ssh
+dump_state "initial-boot"
 initial=$(read_slot)
 echo "Initial slot: $initial"
 [ "$initial" = "A" ] || { echo "ERROR: expected slot A on first boot, got '$initial'"; exit 1; }
