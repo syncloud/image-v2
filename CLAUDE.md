@@ -1,3 +1,28 @@
+# No guesswork in scripts
+
+Build, test, and image-assembly scripts must do **one thing** and **fail loudly**
+when reality doesn't match the assumption. No fallbacks, no silent defaults, no
+"try X then maybe Y" guards that mask real problems.
+
+Concretely:
+- Required env vars / inputs: use `: "${VAR:?VAR must be set}"` or an explicit
+  `[ -n "$VAR" ] || { echo "ERROR: ..."; exit 1; }`. Never `${VAR:-fallback}`
+  for things that have no sensible default.
+- Required files: assert with `[ -f path ] || exit 1`. Don't `if [ -f ]; then ...`
+  and silently skip when missing. The build should fail with a clear error.
+- External commands: don't end with `|| true` to swallow errors. If the failure
+  is genuinely OK, document why in a `# Why:` line; otherwise let it bubble up.
+- Output parsing: if a command's output format changes (Debian rename, Armbian
+  layout shift, etc.) the script should fail fast with the actual mismatch
+  visible in the log — not silently produce a broken artifact.
+- Diagnostics over stoicism: log enough state at every checkpoint (slot, version,
+  url, http-code, env) that a future human can debug from the CI log alone
+  without re-running.
+
+Rationale: silent defaults waste hours of CI iterations chasing symptoms when the
+real issue (missing package, renamed file, wrong URL, etc.) was right there from
+the start. Fail-fast turns a 30-minute wait into a 30-second diff.
+
 # Debugging CI failures
 
 When a CI build fails, always start by identifying the failing step:
