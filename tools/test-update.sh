@@ -30,7 +30,7 @@ fi
 WORK_DIR=$(mktemp -d)
 IMAGE="$WORK_DIR/test.img"
 SSH_PORT=2222
-SSH="sshpass -p syncloud ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -p $SSH_PORT root@localhost"
+SSH="sshpass -p syncloud ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=error -o ConnectTimeout=5 -p $SSH_PORT root@localhost"
 
 QEMU_PID=""
 HTTPD_PID=""

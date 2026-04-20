@@ -161,11 +161,15 @@ mkdir -p "$ROOTFS_DIR/usr/lib/rauc"
 cp "$ROOT/rauc/post-install.sh" "$ROOTFS_DIR/usr/lib/rauc/"
 chmod +x "$ROOTFS_DIR/usr/lib/rauc/post-install.sh"
 
-# Add data partition to fstab
+# Add data partition and ESP to fstab. ESP must be mounted at runtime
+# so that rauc-grub and grub-editenv can read/write grubenv on the ESP
+# after an update — otherwise 'rauc install' fails to flip ORDER.
 echo "=== Configuring fstab ($(date)) ==="
 mkdir -p "$ROOTFS_DIR/mnt/data"
 grep -q 'by-partlabel/data' "$ROOTFS_DIR/etc/fstab" || \
     echo '/dev/disk/by-partlabel/data  /mnt/data  ext4  defaults,nofail  0  2' >> "$ROOTFS_DIR/etc/fstab"
+grep -q 'by-partlabel/esp' "$ROOTFS_DIR/etc/fstab" || \
+    echo '/dev/disk/by-partlabel/esp  /boot/efi  vfat  defaults,nofail,umask=0077  0  1' >> "$ROOTFS_DIR/etc/fstab"
 
 umount "$ROOTFS_DIR"
 
