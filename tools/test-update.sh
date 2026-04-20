@@ -213,6 +213,13 @@ apply_update_and_wait() {
     # which will tear down SSH. That's fine.
     echo "Triggering syncloud-update.service on guest..."
     $SSH 'systemctl start syncloud-update.service' || true
+    # Grab the install journal before QEMU exits. The new slot's rootfs
+    # will have an empty journal after reboot, so if we don't capture
+    # here we lose all install-side logs.
+    echo "=== syncloud-update.service journal (pre-reboot) ==="
+    $SSH 'journalctl -u syncloud-update.service --no-pager -n 200' || true
+    echo "=== rauc status (pre-reboot) ==="
+    $SSH 'rauc status --detailed' || true
     # Wait for the VM to actually reboot: QEMU exits on reboot because
     # of -no-reboot. Time-box it so a silent no-op update doesn't hang.
     echo "Waiting for QEMU to exit (reboot)..."
