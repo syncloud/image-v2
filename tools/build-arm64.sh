@@ -223,9 +223,6 @@ mkdir -p "$WORK_DIR/out-rootfs/etc/rauc"
 BOOTLOADER_TYPE=${BOOTLOADER:-uboot}
 sed "s|@RAUC_COMPATIBLE@|${RAUC_COMPATIBLE}|;s|@BOOTLOADER@|${BOOTLOADER_TYPE}|" \
     "$ROOT/rauc/system.conf" > "$WORK_DIR/out-rootfs/etc/rauc/system.conf"
-mkdir -p "$WORK_DIR/out-rootfs/usr/lib/rauc"
-cp "$ROOT/rauc/post-install.sh" "$WORK_DIR/out-rootfs/usr/lib/rauc/"
-chmod +x "$WORK_DIR/out-rootfs/usr/lib/rauc/post-install.sh"
 
 # Add data partition to fstab
 echo "=== Configuring fstab ($(date)) ==="

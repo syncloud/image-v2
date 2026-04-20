@@ -157,9 +157,6 @@ mkdir -p "$ROOTFS_DIR/etc/rauc"
 BOOTLOADER_TYPE=${BOOTLOADER:-grub}
 sed "s|@RAUC_COMPATIBLE@|${RAUC_COMPATIBLE}|;s|@BOOTLOADER@|${BOOTLOADER_TYPE}|" \
     "$ROOT/rauc/system.conf" > "$ROOTFS_DIR/etc/rauc/system.conf"
-mkdir -p "$ROOTFS_DIR/usr/lib/rauc"
-cp "$ROOT/rauc/post-install.sh" "$ROOTFS_DIR/usr/lib/rauc/"
-chmod +x "$ROOTFS_DIR/usr/lib/rauc/post-install.sh"
 
 # Add data partition and ESP to fstab. ESP must be mounted at runtime
 # so that rauc-grub and grub-editenv can read/write grubenv on the ESP
