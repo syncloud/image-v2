@@ -128,12 +128,13 @@ rm -f "$ROOTFS_DIR/etc/systemd/system/syncloud-update.timer"
 rm -f "$ROOTFS_DIR/etc/systemd/system/syncloud-boot-ok.service"
 
 mkdir -p "$ROOTFS_DIR/etc/systemd/system/local-fs.target.wants"
-mkdir -p "$ROOTFS_DIR/etc/systemd/system/timers.target.wants"
 mkdir -p "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants"
 ln -sf /usr/lib/systemd/system/syncloud-data-init.service \
     "$ROOTFS_DIR/etc/systemd/system/local-fs.target.wants/syncloud-data-init.service"
-ln -sf /usr/lib/systemd/system/syncloud-update.timer \
-    "$ROOTFS_DIR/etc/systemd/system/timers.target.wants/syncloud-update.timer"
+# syncloud-update.timer intentionally NOT enabled: automatic OS updates
+# are off for initial rollout. Trigger manually with
+#   systemctl start syncloud-update.service
+# Enable the timer later once auto-update flow is validated in the field.
 # rauc.service runs the RAUC daemon (D-Bus server). Required for 'rauc install'
 # and 'rauc status' — without it calls fail with "name not provided by .service files".
 # syncloud-boot-ok marks the current slot as good after a successful boot — without
