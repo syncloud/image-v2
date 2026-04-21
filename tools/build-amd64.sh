@@ -97,14 +97,22 @@ echo "=== Installing GRUB to ESP ($(date)) ==="
 mkdir -p "$ROOTFS_DIR/boot/efi"
 mount "$ESP" "$ROOTFS_DIR/boot/efi"
 chroot "$ROOTFS_DIR" grub-install --target=x86_64-efi --efi-directory=/boot/efi --no-nvram --removable
+# GRUB --removable boots BOOTX64.EFI which has a compiled-in prefix of
+# /EFI/BOOT; it loads /EFI/BOOT/grub.cfg, not /boot/grub/grub.cfg. The
+# default grub-install config there does a `search.fs_uuid` that can
+# match *either* rootfs slot (both share a UUID after we dd-cloned A -> B)
+# and ends up booting a slot unrelated to the grubenv ORDER. Overwrite
+# /EFI/BOOT/grub.cfg with our real A/B selector so the A/B flow is the
+# one that runs at boot.
+cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/efi/EFI/BOOT/grub.cfg"
+# Also keep copies at the legacy paths for humans inspecting the image.
 cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/grub/grub.cfg"
-# Also put grub.cfg on ESP for removable boot
 mkdir -p "$ROOTFS_DIR/boot/efi/boot/grub"
 cp "$ROOT/rauc/grub.cfg" "$ROOTFS_DIR/boot/efi/boot/grub/grub.cfg"
 # Create grubenv with RAUC-managed state. RAUC reads/writes ORDER, A_OK,
-# B_OK, A_TRY, B_TRY to pick the boot slot. Without these set at image
-# build time, rauc fails with:
-#   "Failed getting primary slot: grub backend: Variable ORDER not set"
+# B_OK, A_TRY, B_TRY to pick the boot slot. Our grub.cfg pins load_env
+# to (hd0,gpt1)/boot/grub/grubenv; rauc writes the same path via
+# system.conf. Both converge on one file on the ESP.
 chroot "$ROOTFS_DIR" grub-editenv /boot/grub/grubenv create
 chroot "$ROOTFS_DIR" grub-editenv /boot/grub/grubenv set \
     ORDER="A B" A_OK=1 B_OK=0 A_TRY=0 B_TRY=0
