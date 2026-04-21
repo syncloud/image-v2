@@ -260,13 +260,24 @@ read_slot() {
     $SSH "grep -oE 'rauc\\.slot=[AB]' /proc/cmdline | cut -d= -f2"
 }
 
+# Print the GRUB-side lines from the QEMU console so we can see which
+# branch grub.cfg took. grub.cfg prints 'RAUC-DEBUG ...' over serial.
+dump_grub_debug() {
+    echo "--- GRUB serial output (RAUC-DEBUG) ---"
+    grep 'RAUC-DEBUG' "$QEMU_LOG" 2>/dev/null || echo "(no RAUC-DEBUG lines in $QEMU_LOG)"
+}
+
 # --- Test run ---
 echo "=== Booting initial image (slot A) ($(date)) ==="
 boot_and_wait_ssh
 dump_state "initial-boot"
 initial=$(read_slot)
 echo "Initial slot: $initial"
-[ "$initial" = "A" ] || { echo "ERROR: expected slot A on first boot, got '$initial'"; exit 1; }
+if [ "$initial" != "A" ] ; then
+    echo "ERROR: expected slot A on first boot, got '$initial'"
+    dump_grub_debug
+    exit 1
+fi
 
 echo "=== Cycle 1: install bundle v2, expect flip to B ($(date)) ==="
 publish_manifest 2
