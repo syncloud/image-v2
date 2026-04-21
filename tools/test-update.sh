@@ -282,8 +282,59 @@ after2=$(read_slot)
 echo "After cycle 2: slot $after2"
 [ "$after2" = "A" ] || { echo "ERROR: expected slot A after cycle 2, got '$after2'"; exit 1; }
 
+# ---------------------------------------------------------------------------
+# Rollback cycle: simulate a broken slot B. Sabotage its kernel, force
+# grub to prefer B with 1 retry left, reboot. Expect:
+#   boot 1: grub picks B, decrements B_TRY to 0, kernel missing, hangs/fails
+#   boot 2: B_TRY=0, B_OK=0 → B not eligible, grub falls back to A
+# We host-side kill QEMU after each attempt that doesn't yield SSH and
+# restart; after the fallback, SSH comes back on slot A with v3 still.
+# ---------------------------------------------------------------------------
+echo "=== Rollback cycle: break slot B, expect fallback to A ($(date)) ==="
+echo "Sabotaging slot B (remove /vmlinuz and /boot/vmlinuz*)..."
+$SSH 'mkdir -p /mnt/sab && mount /dev/disk/by-partlabel/rootfs-b /mnt/sab && rm -f /mnt/sab/vmlinuz /mnt/sab/initrd.img /mnt/sab/boot/vmlinuz* /mnt/sab/boot/initrd.img* && umount /mnt/sab'
+echo "Forcing grub to prefer slot B with 1 try (rollback in 2 boots)..."
+$SSH 'grub-editenv /boot/efi/boot/grub/grubenv set ORDER="B A" B_OK=0 B_TRY=1'
+$SSH 'grub-editenv /boot/efi/boot/grub/grubenv list'
+echo "Rebooting — expect grub to try B, fail, fall back to A..."
+$SSH 'systemctl reboot' || true
+wait "$QEMU_PID" 2>/dev/null || true
+QEMU_PID=""
+
+# Boot attempt 1: grub picks B (B_TRY=1), decrements to 0, boots a
+# missing kernel — VM hangs at GRUB error. We give it 30 s; since it
+# won't reach SSH, kill and restart.
+echo "Boot attempt 1 (expected hang on broken slot B)..."
+qemu-system-x86_64 \
+    -enable-kvm -bios "$OVMF" \
+    -drive file="$IMAGE",format=raw,if=virtio \
+    -m 1024 -smp 2 -nographic -serial "file:$QEMU_LOG" \
+    -net nic,model=virtio -net user,hostfwd=tcp::${SSH_PORT}-:22 \
+    -no-reboot >/dev/null 2>&1 &
+QEMU_PID=$!
+sleep 30
+if $SSH echo "ssh-ok" >/dev/null 2>&1; then
+    echo "ERROR: SSH came up on boot-attempt-1; expected broken-B hang"
+    dump_state "unexpected-boot-1"
+    exit 1
+fi
+echo "As expected — no SSH. Killing QEMU to simulate power cycle."
+kill "$QEMU_PID" 2>/dev/null
+wait "$QEMU_PID" 2>/dev/null || true
+QEMU_PID=""
+
+# Boot attempt 2: B_TRY=0 and B_OK=0 → grub falls back to A. SSH returns.
+echo "Boot attempt 2 (expected fallback to slot A)..."
+boot_and_wait_ssh
+dump_state "after-rollback"
+rollback_slot=$(read_slot)
+echo "After rollback: slot $rollback_slot"
+[ "$rollback_slot" = "A" ] || { echo "ERROR: rollback expected slot A, got '$rollback_slot'"; exit 1; }
+got_sentinel=$($SSH 'cat /etc/syncloud-test-version 2>/dev/null || echo MISSING')
+[ "$got_sentinel" = "version=3" ] || { echo "ERROR: rollback expected sentinel version=3 (last A install), got '$got_sentinel'"; exit 1; }
+
 # Clean shutdown
 $SSH poweroff || true
 kill_qemu
 
-echo "=== A/B update test passed: A -> B -> A ($(date)) ==="
+echo "=== A/B update test passed: A -> B -> A + rollback (A) ($(date)) ==="
