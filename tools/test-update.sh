@@ -178,6 +178,8 @@ dump_state() {
     $SSH 'rauc status --detailed' || true
     echo "--- /etc/syncloud-test-version ---"
     $SSH 'cat /etc/syncloud-test-version 2>/dev/null || echo "(not present)"' || true
+    echo "--- GRUB serial (RAUC-DEBUG from most recent boot) ---"
+    grep 'RAUC-DEBUG' "$QEMU_LOG" 2>/dev/null || echo "(no RAUC-DEBUG in $QEMU_LOG)"
     echo "================ end state: $label ================"
 }
 
