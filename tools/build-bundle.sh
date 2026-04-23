@@ -24,6 +24,15 @@ ROOTFS_IMAGE="$OUTPUT_DIR/syncloud-${BOARD_NAME}.img"
 
 mkdir -p "$BUNDLE_DIR"
 
+# The build step compresses the raw image to .img.xz and removes the .img
+# to avoid bloating the artifact upload. Decompress on demand for bundling.
+if [ ! -f "$ROOTFS_IMAGE" ] ; then
+    [ -f "${ROOTFS_IMAGE}.xz" ] || \
+        { echo "ERROR: neither ${ROOTFS_IMAGE} nor ${ROOTFS_IMAGE}.xz exists — build step must run first"; exit 1; }
+    echo "Decompressing ${ROOTFS_IMAGE}.xz"
+    xz -T0 -dk "${ROOTFS_IMAGE}.xz"
+fi
+
 # Extract rootfs-a from the built image
 LOOP=$(losetup --find --show "$ROOTFS_IMAGE")
 kpartx -avs "$LOOP"
