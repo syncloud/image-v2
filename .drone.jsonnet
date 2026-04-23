@@ -56,15 +56,9 @@ local build(board, arch) = {
             },
         },
         commands: [
-            "mkdir -p rauc/keys",
-            "printf '%s' \"$RAUC_SIGNING_KEY\" > rauc/keys/key.pem",
-            "chmod 600 rauc/keys/key.pem",
-            "./tools/build-bundle.sh " + board_dir + " ${DRONE_TAG:-dev}",
+            "./tools/ci-bundle.sh " + board_dir + " ${DRONE_TAG:-dev}",
         ],
         privileged: true,
-        when: {
-            event: ["tag"]
-        }
     },
     {
         name: "publish to github",
