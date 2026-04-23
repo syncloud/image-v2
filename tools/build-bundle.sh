@@ -15,6 +15,10 @@ if [[ -z "$BOARD_DIR" || -z "$VERSION" ]]; then
     exit 1
 fi
 
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    xz-utils squashfs-tools kpartx rauc
+
 source "$BOARD_DIR/board.conf"
 BOARD_NAME=$(basename "$BOARD_DIR")
 
