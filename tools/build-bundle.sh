@@ -49,9 +49,17 @@ version=${VERSION}
 filename=rootfs.img
 EOF
 
-# Build the bundle (requires signing key)
+# Build the bundle. The cert embedded in the signature is the committed
+# keyring.pem (self-signed — same file the device trusts). The private
+# key is injected by CI from the rauc_signing_key secret into
+# rauc/keys/key.pem before this script runs.
+[ -f "$ROOT/rauc/keyring.pem" ] || \
+    { echo "ERROR: rauc/keyring.pem missing — run tools/gen-keys.sh once and commit rauc/keyring.pem"; exit 1; }
+[ -f "$ROOT/rauc/keys/key.pem" ] || \
+    { echo "ERROR: rauc/keys/key.pem missing — CI must write it from the rauc_signing_key secret"; exit 1; }
+
 rauc bundle \
-    --cert="$ROOT/rauc/keys/cert.pem" \
+    --cert="$ROOT/rauc/keyring.pem" \
     --key="$ROOT/rauc/keys/key.pem" \
     "$BUNDLE_DIR" \
     "$OUTPUT_DIR/syncloud-${BOARD_NAME}-${VERSION}.raucb"

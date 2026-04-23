@@ -167,6 +167,10 @@ BOOTLOADER_TYPE=${BOOTLOADER:-grub}
 sed "s|@RAUC_COMPATIBLE@|${RAUC_COMPATIBLE}|;s|@BOOTLOADER@|${BOOTLOADER_TYPE}|" \
     "$ROOT/rauc/system.conf" > "$ROOTFS_DIR/etc/rauc/system.conf"
 
+[ -f "$ROOT/rauc/keyring.pem" ] || \
+    { echo "ERROR: rauc/keyring.pem missing — run tools/gen-keys.sh once and commit rauc/keyring.pem"; exit 1; }
+cp "$ROOT/rauc/keyring.pem" "$ROOTFS_DIR/etc/rauc/keyring.pem"
+
 # Add data partition and ESP to fstab. ESP must be mounted at runtime
 # so that rauc-grub and grub-editenv can read/write grubenv on the ESP
 # after an update — otherwise 'rauc install' fails to flip ORDER.

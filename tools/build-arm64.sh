@@ -225,6 +225,10 @@ BOOTLOADER_TYPE=${BOOTLOADER:-uboot}
 sed "s|@RAUC_COMPATIBLE@|${RAUC_COMPATIBLE}|;s|@BOOTLOADER@|${BOOTLOADER_TYPE}|" \
     "$ROOT/rauc/system.conf" > "$WORK_DIR/out-rootfs/etc/rauc/system.conf"
 
+[ -f "$ROOT/rauc/keyring.pem" ] || \
+    { echo "ERROR: rauc/keyring.pem missing — run tools/gen-keys.sh once and commit rauc/keyring.pem"; exit 1; }
+cp "$ROOT/rauc/keyring.pem" "$WORK_DIR/out-rootfs/etc/rauc/keyring.pem"
+
 # Add data partition to fstab
 echo "=== Configuring fstab ($(date)) ==="
 mkdir -p "$WORK_DIR/out-rootfs/mnt/data"

@@ -50,7 +50,15 @@ local build(board, arch) = {
     {
         name: "bundle",
         image: "debian:bookworm",
+        environment: {
+            RAUC_SIGNING_KEY: {
+                from_secret: "rauc_signing_key"
+            },
+        },
         commands: [
+            "mkdir -p rauc/keys",
+            "printf '%s' \"$RAUC_SIGNING_KEY\" > rauc/keys/key.pem",
+            "chmod 600 rauc/keys/key.pem",
             "./tools/build-bundle.sh " + board_dir + " ${DRONE_TAG:-dev}",
         ],
         privileged: true,
