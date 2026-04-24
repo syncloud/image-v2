@@ -76,6 +76,24 @@ local build(board, arch) = {
         }
     },
     {
+        name: "publish to s3",
+        image: "debian:bookworm",
+        environment: {
+            AWS_ACCESS_KEY_ID: {
+                from_secret: "aws_access_key_id"
+            },
+            AWS_SECRET_ACCESS_KEY: {
+                from_secret: "aws_secret_access_key"
+            },
+        },
+        commands: [
+            "./tools/publish-s3.sh " + board_dir,
+        ],
+        when: {
+            event: ["tag"]
+        }
+    },
+    {
         name: "artifact",
         image: "appleboy/drone-scp:1.6.4",
         settings: {
