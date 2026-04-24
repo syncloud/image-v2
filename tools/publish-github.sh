@@ -24,17 +24,25 @@ echo "--- files to upload ---"
 echo "$FILES"
 [ -n "$FILES" ] || { echo "ERROR: no *.xz or *.raucb files in output/"; exit 1; }
 
-for i in 1 2 3; do
-    echo "--- attempt $i ---"
-    if timeout 600 "$GH" release upload "$DRONE_TAG" \
-        --repo syncloud/image-v2 \
-        --clobber $FILES; then
-        echo "upload succeeded on attempt $i"
-        exit 0
-    fi
-    echo "attempt $i failed with exit $?; sleeping 10s"
-    sleep 10
+upload_file() {
+    f=$1
+    for i in 1 2 3; do
+        echo "--- uploading $f (attempt $i) ---"
+        if "$GH" release upload "$DRONE_TAG" \
+            --repo syncloud/image-v2 \
+            --clobber "$f"; then
+            echo "OK: $f"
+            return 0
+        fi
+        echo "attempt $i for $f failed; sleeping 10s"
+        sleep 10
+    done
+    echo "ERROR: failed to upload $f after 3 attempts"
+    return 1
+}
+
+for f in $FILES; do
+    upload_file "$f"
 done
 
-echo "ERROR: gh release upload failed after 3 attempts"
-exit 1
+echo "OK: all files uploaded"
