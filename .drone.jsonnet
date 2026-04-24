@@ -86,7 +86,7 @@ local build(board, arch) = {
             key: {
                 from_secret: "artifact_key"
             },
-            command_timeout: "2m",
+            command_timeout: "30m",
             target: "/home/artifact/repo/image-v2",
             source: "output/*"
         }
