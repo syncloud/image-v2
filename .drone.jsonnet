@@ -62,7 +62,7 @@ local build(board, arch) = {
     },
     {
         name: "publish to github",
-        image: "maniator/gh:v2.65.0",
+        image: "debian:bookworm",
         environment: {
             GITHUB_TOKEN: {
                 from_secret: "github_token"
