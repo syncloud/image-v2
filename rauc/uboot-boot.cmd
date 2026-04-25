@@ -24,7 +24,11 @@ for slot in ${BOOT_ORDER}; do
     if test -n "${bootpart}"; then
         saveenv
         echo "Booting slot ${slot_name} from partition ${bootpart}"
-        setenv bootargs "root=/dev/mmcblk0p${bootpart} rootfstype=ext4 rootwait rauc.slot=${slot_name}"
+        # panic=10: kernel/initramfs auto-reboots 10s after panic or
+        # mount-fail (Debian initramfs-tools' panic() honors this), so a
+        # broken slot consumes a TRY counter and GRUB/U-Boot eventually
+        # falls back to the good slot — no manual power cycle needed.
+        setenv bootargs "root=/dev/mmcblk0p${bootpart} rootfstype=ext4 rootwait rauc.slot=${slot_name} panic=10"
         load mmc 0:${bootpart} ${kernel_addr_r} /boot/vmlinuz
         load mmc 0:${bootpart} ${fdt_addr_r} /boot/dtb/${fdtfile}
         load mmc 0:${bootpart} ${ramdisk_addr_r} /boot/initrd.img
