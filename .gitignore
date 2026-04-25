@@ -1,3 +1,4 @@
 .claude/scheduled_tasks.lock
 .runner
 rauc/keys/
+.tmp/

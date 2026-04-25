@@ -47,6 +47,9 @@ xz -dk "$IMAGE_XZ" -c > "$IMAGE"
 ls -lh "$IMAGE"
 
 # --- Generate test signing keys and inject cert into both slots ---
+# Why both slots: build-bundle.sh dd's slot A into the bundle, so the new
+# slot rootfs already trusts the test cert too — but we inject explicitly
+# so the *current* boot also accepts test bundles before any install.
 echo "=== Generating test keys + injecting cert ($(date)) ==="
 KEY_DIR="$WORK_DIR/keys"
 mkdir -p "$KEY_DIR"
@@ -66,41 +69,30 @@ for dev in "$ROOTFS_A" "$ROOTFS_B"; do
     cp "$KEY_DIR/cert.pem" "$MNT/etc/rauc/keyring.pem"
     umount "$MNT"
 done
-
-# --- Snapshot rootfs-a contents as bundle source ---
-echo "=== Snapshotting rootfs-a for bundle source ($(date)) ==="
-BUNDLE_SRC="$WORK_DIR/bundle-src.ext4"
-dd if="$ROOTFS_A" of="$BUNDLE_SRC" bs=4M status=none
 kpartx -d "$LOOP"
 losetup -d "$LOOP"
 
-# --- Helper: make_bundle <version> ---
+# --- Build bundles via the *production* build-bundle.sh ---
+# Drives the same code path that ci-bundle.sh uses for the dev/release
+# bundles, so any regression in bundle format is caught here. Sentinel
+# (/etc/syncloud-test-version) is overlaid via INJECT_DIR so the test can
+# tell which bundle is currently booted without modifying build-bundle.sh.
+DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(dirname "$DIR")
 make_bundle() {
     version=$1
-    work="$WORK_DIR/bundle-v$version"
-    mkdir -p "$work"
-    cp "$BUNDLE_SRC" "$work/rootfs.img"
-    m="$WORK_DIR/bundle-mnt"
-    mkdir -p "$m"
-    mount -o loop "$work/rootfs.img" "$m"
-    echo "version=$version" > "$m/etc/syncloud-test-version"
-    umount "$m"
-    cat > "$work/manifest.raucm" <<EOF
-[update]
-compatible=syncloud-amd64-uefi
-version=$version
-
-[image.rootfs]
-filename=rootfs.img
-EOF
-    rauc bundle \
-        --cert="$KEY_DIR/cert.pem" \
-        --key="$KEY_DIR/key.pem" \
-        "$work" \
-        "$WORK_DIR/bundle-v$version.raucb"
+    inject="$WORK_DIR/inject-v$version"
+    mkdir -p "$inject/etc"
+    echo "version=$version" > "$inject/etc/syncloud-test-version"
+    IMAGE_PATH="$IMAGE" \
+    BUNDLE_OUT="$WORK_DIR/bundle-v$version.raucb" \
+    BUNDLE_CERT="$KEY_DIR/cert.pem" \
+    BUNDLE_KEY="$KEY_DIR/key.pem" \
+    INJECT_DIR="$inject" \
+        "$ROOT/tools/build-bundle.sh" boards/amd64-uefi "$version"
 }
 
-echo "=== Building bundles v2, v3 ($(date)) ==="
+echo "=== Building bundles v2, v3 via tools/build-bundle.sh ($(date)) ==="
 make_bundle 2
 make_bundle 3
 ls -lh "$WORK_DIR"/bundle-v*.raucb
@@ -150,6 +142,15 @@ boot_and_wait_ssh() {
         if $SSH echo "ssh-ok" >/dev/null 2>&1; then
             echo "SSH ready after $i attempts"
             return 0
+        fi
+        # Fast-fail: detect terminal boot-failure markers so we don't wait
+        # the full 5 minutes when the slot is unbootable. "(initramfs)"
+        # prompt or "Failed to mount" both mean the kernel gave up — no
+        # amount of waiting will produce SSH.
+        if grep -qE "Failed to mount /dev/|\\(initramfs\\)|Kernel panic" "$QEMU_LOG" 2>/dev/null; then
+            echo "ERROR: kernel reported boot failure on console — bailing out early"
+            tail -60 "$QEMU_LOG"
+            return 1
         fi
         sleep 5
     done
@@ -222,10 +223,14 @@ apply_update_and_wait() {
     # Grab the install journal before QEMU exits. The new slot's rootfs
     # will have an empty journal after reboot, so if we don't capture
     # here we lose all install-side logs.
-    echo "=== syncloud-update.service journal (pre-reboot) ==="
-    $SSH 'journalctl -u syncloud-update.service --no-pager -n 200' || true
-    echo "=== rauc status (pre-reboot) ==="
-    $SSH 'rauc status --detailed' || true
+    # Note: we *cannot* run pre-reboot integrity probes here — `systemctl
+    # start syncloud-update.service` blocks until the unit finishes, and the
+    # unit ends with `reboot`, so by the time this returns the VM is already
+    # going down and SSH probes hit "Connection closed". The squashfs-vs-ext4
+    # regression is caught earlier by build-bundle.sh's dumpe2fs guard;
+    # post-reboot, kernel-mounted-ext4 plus the sentinel below cover the rest.
+    echo "=== syncloud-update.service journal (pre-shutdown) ==="
+    $SSH 'journalctl -u syncloud-update.service --no-pager -n 200' 2>/dev/null || true
     # Wait for the VM to actually reboot: QEMU exits on reboot because
     # of -no-reboot. Time-box it so a silent no-op update doesn't hang.
     echo "Waiting for QEMU to exit (reboot)..."
