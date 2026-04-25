@@ -174,6 +174,10 @@ dump_state() {
     $SSH 'cat /proc/cmdline' || true
     echo "--- grubenv (ESP) ---"
     $SSH 'grub-editenv /boot/efi/boot/grub/grubenv list' || true
+    echo "--- grubenv file probes ---"
+    $SSH 'mount | grep -E "efi|esp"; ls -la /boot/efi/boot/grub/grubenv; wc -c /boot/efi/boot/grub/grubenv; head -c 32 /boot/efi/boot/grub/grubenv | od -c | head -2' || true
+    echo "--- grub-editenv set probe ---"
+    $SSH 'grub-editenv /boot/efi/boot/grub/grubenv set _PROBE=ok 2>&1; echo exit=$?; grub-editenv /boot/efi/boot/grub/grubenv list | grep _PROBE; grub-editenv /boot/efi/boot/grub/grubenv unset _PROBE 2>&1' || true
     echo "--- rauc status ---"
     $SSH 'rauc status --detailed' || true
     echo "--- /etc/syncloud-test-version ---"
