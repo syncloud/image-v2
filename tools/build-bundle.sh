@@ -23,7 +23,7 @@ VERSION=$2
 [ -f "$BOARD_DIR/board.conf" ] || { echo "ERROR: $BOARD_DIR/board.conf not found"; exit 1; }
 
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xz-utils kpartx rauc e2fsprogs
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xz-utils kpartx rauc e2fsprogs squashfs-tools
 
 source "$BOARD_DIR/board.conf"
 BOARD_NAME=$(basename "$BOARD_DIR")
