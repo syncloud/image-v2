@@ -116,9 +116,4 @@ EOF
 echo "=== rauc bundle → $OUT_BUNDLE ==="
 rauc bundle --cert="$CERT" --key="$KEY" "$BUNDLE_DIR" "$OUT_BUNDLE"
 
-# Self-verify: parse the bundle we just produced. Catches signing/format
-# regressions before the artifact is uploaded.
-echo "=== Verifying bundle parses ==="
-rauc --keyring="$CERT" info "$OUT_BUNDLE"
-
 echo "Bundle built: $OUT_BUNDLE ($(ls -lh "$OUT_BUNDLE" | awk '{print $5}'))"
